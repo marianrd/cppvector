@@ -22,6 +22,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -191,11 +192,7 @@ public:
      * @brief Constructor para C++98 y C++04
      * Crea un vector vacio con capacidad y tamaño 0
      **/
-    Vector() {
-        datos = NULL;
-        tam = 0;
-        capacidad = 0;
-    }
+    Vector() : datos(NULL), tam(0), capacidad(0) {}
 #endif
 #if __cplusplus>=201103L
     /**
@@ -203,11 +200,7 @@ public:
      * Crea un vector vacio con capacidad y tamaño 0.
      * Constructor para C++11+, usando nullptr en vez de NULL
      **/
-    Vector() {
-        datos = nullptr;
-        tam = 0;
-        capacidad = 0;
-    }
+    Vector() : datos(nullptr), tam(0), capacidad(0) {}
 
     /**
      * @brief Constructor para la initializer list
@@ -241,6 +234,7 @@ public:
      * @brief Destructor de la clase Vector
      */
     ~Vector() {
+        assert(tam <= capacidad);
         delete[] datos;
     }
 
@@ -280,6 +274,20 @@ public:
         }
         return *this;
     }
+
+    /**
+     * @brief Operador de copia
+     * @param otro
+     * @return
+     */
+    Vector& operator=(const Vector& otro) {
+        if (this != &otro) {
+            Vector temp(otro);
+            swap(temp);
+        }
+        return *this;
+    }
+
 #endif
 #if __cplusplus<201103L
     /**
@@ -301,12 +309,15 @@ public:
      * @param otro
      */
     Vector(const Vector& otro) {
-        Vector temp(otro.tam);
-        for (size_t i = 0; i < otro.tam; ++i)
-            temp.datos[i] = otro.datos[i];
-        temp.tam = otro.tam;
-        swap(temp);
+        datos = new tipodato[otro.capacidad];
+        tam = otro.tam;
+        capacidad = otro.capacidad;
+        for (size_t i = 0; i < tam; ++i) {
+            datos[i] = otro.datos[i];
+        }
     }
+
+
 #endif
     //
     //  INICIO SECCION ITERADORES
@@ -323,14 +334,20 @@ public:
      */
     struct Iterator {
         tipodato *ptr;
-
-        //  Cosas requeridas para que el iterador funcione correctamente
+#if __cplusplus < 202002L
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type        = tipodato;
+        using difference_type   = std::ptrdiff_t;
+        using pointer           = tipodato*;
+        using reference         = tipodato&;
+#else
         using iterator_category = std::random_access_iterator_tag;
         using value_type = tipodato;
         using difference_type = std::ptrdiff_t;
         using pointer = tipodato*;
         using reference = tipodato&;
-
+#endif
+#if __cplusplus<202002L
         /**
          * @brief Constructor del iterador
          * @param p
@@ -527,6 +544,202 @@ public:
             return ptr >= o.ptr;
         }
     };
+#else
+        constexpr Iterator() noexcept : ptr(nullptr) {}
+        /**
+         * @brief Constructor del iterador desde puntero.
+         * @param p Puntero al elemento.
+         */
+        constexpr explicit Iterator(tipodato *p) noexcept : ptr(p) {}
+
+        /**
+         * @brief Constructor del iterador por copia.
+         * @param otro Otro Iterator a copiar.
+         *
+         **/
+        constexpr Iterator(const Iterator &otro) noexcept : ptr(otro.ptr) {}
+
+        /**
+         * @brief Operador para asignar un iterador a otro.
+         * @param otro Iterador a asignar.
+         * @return Referencia al iterador resultante.
+         */
+        constexpr Iterator &operator=(const Iterator &otro) noexcept {
+            ptr = otro.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de desrefenciación
+         * @return
+         */
+        constexpr tipodato &operator*() const noexcept {
+            return *ptr;
+        }
+
+        /**
+         * @brief Operador flecha para acceder a miembros del objeto apuntado
+         * @return
+         */
+        constexpr tipodato *operator->() const noexcept {
+            return ptr;
+        }
+
+        //  Operaciones de incremento/decremento
+
+        /**
+         * @brief Operador de pre-incremento.
+         * Avanza el iterador al siguiente elemento.
+         * @return Referencia al iterador modificado.
+         */
+        constexpr Iterator &operator++() noexcept {
+            ++ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de post-incremento.
+         * Avanza el iterador al siguiente elemento, devolviendo una copia del estado previo.
+         * @return Copia del iterador antes del incremento.
+         */
+        constexpr Iterator operator++(int) noexcept {
+            Iterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+
+        /**
+        * @brief Operador de pre-decremento.
+        * Retrocede el iterador al elemento anterior.
+        * @return Referencia al iterador modificado.
+        */
+        constexpr Iterator &operator--() noexcept {
+            --ptr;
+            return *this;
+        }
+
+        /**
+        * @brief Operador de post-decremento.
+        * Retrocede el iterador al elemento anterior, devolviendo una copia del estado previo.
+        * @return Copia del iterador antes del decremento.
+        */
+        constexpr Iterator operator--(int) noexcept {
+            Iterator aux = *this;
+            --ptr;
+            return aux;
+        }
+
+        //  Operaciones Aritmeticas
+
+        /**
+         * @brief Operador de suma para avanzar el iterador.
+         * @param n Número de posiciones a avanzar.
+         * @return Nuevo iterador desplazado n posiciones.
+         */
+        constexpr Iterator operator+(std::ptrdiff_t n) const noexcept {
+            return Iterator(ptr+n);
+        }
+
+        /**
+        * @brief Operador de resta para retroceder el iterador.
+        * @param n Número de posiciones a retroceder.
+        * @return Nuevo iterador desplazado -n posiciones.
+        */
+        constexpr Iterator operator-(std::ptrdiff_t n) const noexcept {
+            return Iterator(ptr-n);
+        }
+
+        /**
+         * @brief Operador de suma-igual.
+         * Avanza el iterador n posiciones.
+         * @param n Número de posiciones a avanzar.
+         * @return Referencia al iterador modificado.
+         */
+        constexpr Iterator &operator+=(std::ptrdiff_t n) noexcept {
+            ptr+=n;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de resta-igual.
+         * Retrocede el iterador n posiciones.
+         * @param n Número de posiciones a retroceder.
+         * @return Referencia al iterador modificado.
+         */
+        constexpr Iterator &operator-=(std::ptrdiff_t n) noexcept {
+            ptr-=n;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de diferencia entre iteradores.
+         * @param o Otro iterador.
+         * @return Número de posiciones de diferencia entre los iteradores.
+         */
+        constexpr difference_type operator-(const Iterator &o) const noexcept {
+            return ptr - o.ptr;
+        }
+
+        /**
+         * @brief Acceso por índice relativo desde la posición actual del iterador.
+         * @param indice Índice relativo.
+         * @return Referencia al elemento en la posición indicada.
+         */
+        constexpr tipodato &operator[](std::ptrdiff_t indice) const noexcept {
+            return *(ptr+indice);
+        }
+
+        //  Comparaciones
+        /**
+         * @brief Operador de desigualdad.
+         * @param o Otro iterador.
+         * @return true si los iteradores apuntan a distintas posiciones.
+         */
+        constexpr bool operator!=(const Iterator &o) const noexcept {
+            return ptr != o.ptr;
+        }
+        /**
+         * @brief Operador menor que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición anterior.
+         */
+        constexpr bool operator<(const Iterator &o) const noexcept {
+            return ptr < o.ptr;
+        }
+        /**
+         * @brief Operador de igualdad.
+         * @param o Otro iterador.
+         * @return true si los iteradores apuntan a la misma posición.
+         */
+        constexpr bool operator==(const Iterator &o) const noexcept {
+            return ptr == o.ptr;
+        }
+        /**
+         * @brief Operador mayor que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición posterior.
+         */
+        constexpr bool operator>(const Iterator &o) const noexcept {
+            return ptr > o.ptr;
+        }
+        /**
+         * @brief Operador menor o igual que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición anterior o igual.
+         */
+        constexpr bool operator<=(const Iterator &o) const noexcept {
+            return ptr <= o.ptr;
+        }
+        /**
+         * @brief Operador mayor o igual que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición posterior o igual.
+         */
+        constexpr bool operator>=(const Iterator &o) const noexcept {
+            return ptr >= o.ptr;
+        }
+    };
+#endif
 
     /**
      * @brief Metodo que apunta al inicio del vector para ser usado en un iterador
@@ -544,6 +757,14 @@ public:
         return Iterator(datos+tam);
     }
 
+#if __cplusplus>=202002L
+    static_assert(std::input_iterator<Iterator>);
+
+    friend constexpr Iterator operator+(std::ptrdiff_t n, const Iterator &it) {
+        return it + n;
+    }
+#endif
+
     /**
      * @class ReverseIterator
      * @brief Iterador inverso para recorrer colecciones desde el final hacia el principio.
@@ -555,15 +776,22 @@ public:
      * @tparam tipodato Tipo de dato que almacena la colección.
      */
     struct ReverseIterator {
-        //  Cosas requeridas para que el iterador funcione correctamente
+        tipodato *ptr;  /// < Puntero al elemento actual
+#if __cplusplus < 202002L
         using iterator_category = std::random_access_iterator_tag;
         using value_type = tipodato;
         using difference_type = std::ptrdiff_t;
         using pointer = tipodato*;
         using reference = tipodato&;
+#else
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = tipodato*;
+        using reference = tipodato&;
+#endif
 
-        tipodato *ptr;  /// < Puntero al elemento actual
-
+#if __cplusplus<202002L
         /**
         * @brief Constructor explícito desde puntero.
         * @param p Puntero al elemento.
@@ -703,6 +931,140 @@ public:
         bool operator>=(const ReverseIterator &o) const {
             return ptr <= o.ptr;
         }
+#else
+        constexpr ReverseIterator() noexcept : ptr(nullptr) {}
+        /**
+        * @brief Constructor explícito desde puntero.
+        * @param p Puntero al elemento.
+        */
+        constexpr ReverseIterator(tipodato *p) noexcept : ptr(p) {}
+
+        /**
+         * @brief Constructor por copia.
+         * @param otro Otro ReverseIterator a copiar.
+         */
+        constexpr ReverseIterator(const ReverseIterator &otro) noexcept : ptr(otro.ptr) {}
+
+        /**
+         * @brief Operador de asignación.
+         * @param otro ReverseIterator a asignar.
+         * @return Referencia al iterador resultante.
+         */
+        constexpr ReverseIterator &operator=(const ReverseIterator &otro) noexcept {
+            ptr = otro.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Retorna un iterador directo apuntando al siguiente elemento (inverso de reverse).
+         * @return Un objeto de tipo Iterator.
+         */
+        constexpr Iterator base() const {
+            return Iterator(ptr+1);
+        }
+
+        /**
+         * @brief Operador de desreferenciación.
+         * @return Referencia al elemento actual.
+         */
+        constexpr tipodato &operator*() const noexcept {
+            return *ptr;
+        }
+        /**
+        * @brief Operador flecha para acceso a miembros.
+        * @return Puntero al elemento actual.
+        */
+        constexpr tipodato &operator->() const noexcept {
+            return &(*ptr);
+        }
+
+        /**
+         * @brief Conversión a Iterator directo.
+         */
+        constexpr operator Iterator() const noexcept {
+            return Iterator(ptr + 1);
+        }
+
+        //  Operador de incremento
+        constexpr ReverseIterator &operator++() noexcept {
+            --ptr; return *this;
+        }
+        //  Operador de post incremento
+        constexpr ReverseIterator operator++(int) noexcept {
+            ReverseIterator aux = *this;
+            --ptr;
+            return aux;
+        }
+        //  Operador de decremento
+        constexpr ReverseIterator &operator--() noexcept {
+            ++ptr; return *this;
+        }
+        //  Operador de post decremento
+        constexpr ReverseIterator operator--(int) noexcept {
+            ReverseIterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+
+        constexpr ReverseIterator operator+(std::ptrdiff_t n) const noexcept {
+            return ReverseIterator(ptr-n);
+        }
+        constexpr ReverseIterator operator-(std::ptrdiff_t n) const noexcept {
+            return ReverseIterator(ptr+n);
+        }
+        constexpr ReverseIterator &operator+=(std::ptrdiff_t n) noexcept {
+            ptr-=n;
+            return *this;
+        }
+        constexpr ReverseIterator &operator-=(std::ptrdiff_t n) noexcept {
+            ptr+=n;
+            return *this;
+        }
+
+        /**
+        * @brief Diferencia entre dos iteradores.
+        * @param o Otro ReverseIterator.
+        * @return Número de elementos entre ellos.
+        */
+        constexpr difference_type operator-(const ReverseIterator &o) const noexcept {
+            return o.ptr - ptr;
+        }
+
+        /**
+         * @brief Acceso aleatorio a elementos mediante índice.
+         * @param indice Índice relativo desde el iterador actual.
+         * @return Referencia al elemento correspondiente.
+         */
+        constexpr tipodato &operator[](std::ptrdiff_t indice) const noexcept {
+            return *(ptr-indice);
+        }
+
+        //  Operadores booleanos
+        //  Operador distinto de
+        constexpr bool operator!=(const ReverseIterator &o) const noexcept {
+            return ptr != o.ptr;
+        }
+        //  Operador igual que
+        constexpr bool operator==(const ReverseIterator &o) const noexcept {
+            return ptr == o.ptr;
+        }
+        //  Operador menor que
+        constexpr bool operator<(const ReverseIterator &o) const noexcept {
+            return ptr > o.ptr;
+        }
+        //  Operador mayor que
+        constexpr bool operator>(const ReverseIterator &o) const noexcept {
+            return ptr < o.ptr;
+        }
+        //  Operador menor o igual que
+        constexpr bool operator<=(const ReverseIterator &o) const noexcept {
+            return ptr >= o.ptr;
+        }
+        //  Operador mayor o igual que
+        constexpr bool operator>=(const ReverseIterator &o) const noexcept {
+            return ptr <= o.ptr;
+        }
+#endif
     };
     /**
      * @brief Retorna un iterador inverso apuntando al último elemento.
@@ -718,6 +1080,13 @@ public:
     ReverseIterator rend() const {
         return ReverseIterator(datos-1);
     }
+#if __cplusplus>=202002L
+    static_assert(std::input_iterator<ReverseIterator>);
+
+    friend constexpr ReverseIterator operator+(std::ptrdiff_t n, const ReverseIterator &it) {
+        return it + n;
+    }
+#endif
 
     //Const Iterator
     /**
@@ -731,12 +1100,20 @@ public:
     struct ConstIterator {
         const tipodato *ptr;    /// < Puntero al elemento actual
         //  Cosas requeridas para que el iterador funcione correctamente
+#if __cplusplus<202003L
         using iterator_category = std::random_access_iterator_tag;
         using value_type = tipodato;
         using difference_type = std::ptrdiff_t;
         using pointer = tipodato*;
         using reference = tipodato&;
-
+#else
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const tipodato*;
+        using reference = const tipodato&;
+#endif
+#if __cplusplus<202002L
         /**
          * @brief Constructor por defecto (C++04 o anterior).
          * @param p Puntero al dato constante.
@@ -874,6 +1251,126 @@ public:
         bool operator>=(const ConstIterator &o) const {
             return ptr <= o.ptr;
         }
+#else
+        constexpr ConstIterator() noexcept : ptr(nullptr) {}
+        constexpr explicit ConstIterator(const tipodato *p) noexcept : ptr(p) {}
+        /**
+        * @brief Constructor copia.
+        * @param o Otro iterador constante.
+        */
+        constexpr ConstIterator(const ConstIterator &o) noexcept : ptr(o.ptr) {
+            ptr = o.ptr;
+        }
+
+        constexpr ConstIterator(const Iterator& it) noexcept : ptr(&(*it)) {}
+
+        /**
+         * @brief Operador de asignación.
+         * @param o Otro iterador constante.
+         * @return Referencia a este iterador.
+         */
+        constexpr ConstIterator &operator=(const ConstIterator &o) noexcept {
+            if (this!=&o) ptr = o.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de desreferenciación.
+         * @return Referencia constante al dato apuntado.
+         */
+        constexpr const tipodato &operator*() const noexcept {
+            return *ptr;
+        }
+        /**
+         * @brief Operador flecha.
+         * @return Puntero constante al dato apuntado.
+         */
+        constexpr const tipodato *operator->() const noexcept {
+            return ptr;
+        }
+
+        //  Operador de incremento
+        constexpr ConstIterator &operator++() noexcept {
+            ++ptr;
+            return *this;
+        }
+        //  Operador de incremento
+        constexpr ConstIterator operator++(int) noexcept {
+            ConstIterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+        //  Operador de decremento
+        constexpr ConstIterator &operator--() noexcept {
+            --ptr;
+            return *this;
+        }
+        //  Operador de decremento
+        constexpr ConstIterator operator--(int) noexcept {
+            ConstIterator aux = *this;
+            --ptr;
+            return aux;
+        }
+
+        constexpr ConstIterator operator+(std::ptrdiff_t n) const noexcept {
+            return ConstIterator(ptr+n);
+        }
+        constexpr ConstIterator operator-(std::ptrdiff_t n) const noexcept {
+            return ConstIterator(ptr-n);
+        }
+        constexpr ConstIterator &operator+=(std::ptrdiff_t n) noexcept {
+            ptr+=n;
+            return *this;
+        }
+        constexpr ConstIterator &operator-=(std::ptrdiff_t n) noexcept {
+            ptr-=n;
+            return *this;
+        }
+
+        /**
+        * @brief Diferencia entre dos iteradores.
+        * @param o Otro ReverseIterator.
+        * @return Número de elementos entre ellos.
+        */
+        constexpr difference_type operator-(const ConstIterator &o) const noexcept {
+            return ptr-o.ptr;
+        }
+
+        /**
+         * @brief Operador de acceso por índice.
+         * @param indice Desplazamiento desde el iterador actual.
+         * @return Referencia constante al dato en la posición.
+         */
+        constexpr const tipodato &operator[](std::ptrdiff_t indice) const noexcept {
+            return *(ptr+indice);
+        }
+
+        //  Operadores booleanos
+        //  Operador igual que
+        constexpr bool operator==(const ConstIterator &o) const noexcept {
+            return ptr == o.ptr;
+        }
+        //  Operador distinto de
+        constexpr bool operator!=(const ConstIterator &o) const noexcept {
+            return ptr != o.ptr;
+        }
+        //  Operador menor que
+        constexpr bool operator<(const ConstIterator &o) const noexcept {
+            return ptr < o.ptr;
+        }
+        //  Operador mayor que
+        constexpr bool operator>(const ConstIterator &o) const noexcept {
+            return ptr > o.ptr;
+        }
+        //  Operador menor o igual que
+        constexpr bool operator<=(const ConstIterator &o) const noexcept {
+            return ptr >= o.ptr;
+        }
+        //  Operador mayor o igual que
+        constexpr bool operator>=(const ConstIterator &o) const noexcept {
+            return ptr <= o.ptr;
+        }
+#endif
     };
 
     /**
@@ -890,6 +1387,13 @@ public:
     ConstIterator cend() const {
         return ConstIterator(datos+tam);
     }
+#if __cplusplus>=202002L
+    static_assert(std::input_iterator<ConstIterator>);
+
+    friend constexpr ConstIterator operator+(std::ptrdiff_t n, const ConstIterator &it) {
+        return it + n;
+    }
+#endif
 
     //  Const Reverse Iterator
     /**
@@ -900,15 +1404,22 @@ public:
      * Cumple con los requisitos de un iterador aleatorio.
      */
     struct ConstReverseIterator {
+        tipodato *ptr;
+#if __cplusplus<202002L
         //  Cosas requeridas para que el iterador funcione correctamente
         using iterator_category = std::random_access_iterator_tag;
         using value_type = tipodato;
         using difference_type = std::ptrdiff_t;
         using pointer = const tipodato*;
         using reference = const tipodato&;
-
-        tipodato *ptr;
-
+#else
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = tipodato*;
+        using reference = tipodato&;
+#endif
+#if __cplusplus<202002L
         /**
          * @brief Constructor.
          * @param p Puntero al elemento actual (último de la colección).
@@ -1045,6 +1556,138 @@ public:
         bool operator>=(const ConstReverseIterator &o) const {
             return ptr <= o.ptr;
         }
+#else
+        constexpr ConstReverseIterator() noexcept : ptr(nullptr) {}
+        /**
+         * @brief Constructor.
+         * @param p Puntero al elemento actual (último de la colección).
+         */
+        constexpr ConstReverseIterator(const tipodato *p) noexcept : ptr(p) {}
+
+        /**
+        * @brief Constructor copia.
+        * @param otro Otro ConstReverseIterator.
+        */
+        constexpr ConstReverseIterator(const ConstReverseIterator &otro) noexcept : ptr(otro.ptr) {}
+
+        constexpr ConstReverseIterator(const ReverseIterator& it) noexcept : ptr(&(*it)) {}
+
+        /**
+         * @brief Operador de asignación.
+         * @param otro Otro iterador a asignar.
+         * @return Referencia a este iterador.
+         */
+        constexpr ConstReverseIterator &operator=(const ConstReverseIterator &otro) noexcept {
+            ptr = otro.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Retorna un ConstIterator correspondiente a la posición "base" (siguiente elemento).
+         * @return ConstIterator apuntando a `ptr + 1`.
+         */
+        constexpr ConstIterator base() const noexcept {
+            return ConstIterator(ptr+1);
+        }
+
+        /**
+         * @brief Conversión implícita a Iterator.
+         * @return Iterator equivalente apuntando a `ptr + 1`.
+         */
+        constexpr operator Iterator() const noexcept {
+            return Iterator(ptr + 1);
+        }
+
+        /**
+         * @brief Operador de desreferenciación.
+         * @return Referencia constante al elemento actual.
+         */
+        constexpr const tipodato &operator*() const noexcept {
+            return *ptr;
+        }
+        /**
+        * @brief Operador flecha.
+        * @return Puntero constante al elemento actual.
+        */
+        constexpr const tipodato &operator->() const noexcept {
+            return &(*ptr);
+        }
+
+        //  Operador de incremento
+        constexpr ConstReverseIterator &operator++() noexcept {
+            --ptr; return *this;
+        }
+        //  Operador de incremento
+        constexpr ConstReverseIterator operator++(int) noexcept {
+            ConstReverseIterator aux = *this;
+            --ptr;
+            return aux;
+        }
+        //  Operador de decremento
+        constexpr ConstReverseIterator &operator--() noexcept {
+            ++ptr; return *this;
+        }
+        //  Operador de decremento
+        constexpr ConstReverseIterator operator--(int) noexcept {
+            ConstReverseIterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+
+        constexpr ConstReverseIterator operator+(std::ptrdiff_t n) const noexcept {
+            return ConstReverseIterator(ptr-n);
+        }
+        constexpr ConstReverseIterator operator-(std::ptrdiff_t n) const noexcept {
+            return ConstReverseIterator(ptr+n);
+        }
+        constexpr ConstReverseIterator &operator+=(std::ptrdiff_t n) noexcept {
+            ptr-=n;
+            return *this;
+        }
+        constexpr ConstReverseIterator &operator-=(std::ptrdiff_t n) noexcept {
+            ptr+=n;
+            return *this;
+        }
+
+        constexpr difference_type operator-(const ConstReverseIterator &o) const noexcept {
+            return ptr - o.ptr;
+        }
+
+        /**
+         * @brief Operador de acceso por índice.
+         * @param indice Desplazamiento desde el iterador actual (hacia atrás).
+         * @return Referencia constante al elemento en la posición indicada.
+         */
+        constexpr const tipodato &operator[](std::ptrdiff_t indice) const noexcept {
+            return *(ptr-indice);
+        }
+
+        //  Operadores booleanos
+        //  Operador distinto de
+        constexpr bool operator!=(const ConstReverseIterator &o) const noexcept {
+            return ptr != o.ptr;
+        }
+        //  Operador igual a
+        constexpr bool operator==(const ConstReverseIterator &o) const noexcept {
+            return ptr == o.ptr;
+        }
+        //  Operador menor que
+        constexpr bool operator<(const ConstReverseIterator &o) const noexcept {
+            return ptr > o.ptr;
+        }
+        //  Operador mayor que
+        constexpr bool operator>(const ConstReverseIterator &o) const noexcept {
+            return ptr < o.ptr;
+        }
+        //  Operador menor o igual que
+        constexpr bool operator<=(const ConstReverseIterator &o) const noexcept {
+            return ptr >= o.ptr;
+        }
+        //  Operador mayor o igual que
+        constexpr bool operator>=(const ConstReverseIterator &o) const noexcept {
+            return ptr <= o.ptr;
+        }
+#endif
     };
     /**
      * @brief Devuelve un iterador constante reverso al final de la colección.
@@ -1061,10 +1704,33 @@ public:
         return ConstReverseIterator(datos-1);
     }
 
+#if __cplusplus>=202002L
+    static_assert(std::input_iterator<ConstReverseIterator>);
+
+    friend constexpr ConstReverseIterator operator+(std::ptrdiff_t n, const ConstReverseIterator &it) {
+        return it + n;
+    }
+#endif
+
+#if __cplusplus >= 202002L
+    constexpr Iterator begin() noexcept { return Iterator(datos); }
+    constexpr Iterator end() noexcept { return Iterator(datos + tam); }
+
+    constexpr ConstIterator cbegin() noexcept { return ConstIterator(datos); }
+    constexpr ConstIterator cend() noexcept { return ConstIterator(datos + tam); }
+
+    constexpr ReverseIterator rbegin() noexcept { return ReverseIterator(datos + tam - 1); }
+    constexpr ReverseIterator rend() noexcept { return ReverseIterator(datos - 1); }
+
+    constexpr ConstReverseIterator crbegin() noexcept { return ConstReverseIterator(datos + tam - 1); }
+    constexpr ConstReverseIterator crend() noexcept { return ConstReverseIterator(datos - 1); }
+#endif
+
     //
     //  FIN DE LA SECCION DE ITERADORES
     //
 
+#if __cplusplus<201103L
     /**
      * @brief Operador de asignación.
      *
@@ -1086,11 +1752,7 @@ public:
         }
         return *this;
     }
-
-    Vector& operator=(Vector otro) {
-        swap(otro);
-        return *this;
-    }
+#endif
 
     /**
     * @brief Operador de salida.
@@ -1403,6 +2065,11 @@ public:
             capacidad = nuevaCapacidad;
         }
 
+        if (tam > nuevaCapacidad) {
+            tam = nuevaCapacidad;
+        }
+        capacidad = nuevaCapacidad;
+
         tipodato *nuevo = new tipodato[capacidad];
 
         for (size_t i = 0; i < tam; i++) {
@@ -1448,7 +2115,7 @@ public:
      * Solo ajusta el tamaño a cero.
      */
     void vaciar() {
-        tam = 0;
+        clear();
     }
 
     /**
@@ -1746,7 +2413,7 @@ public:
     void reducirCapacidad() {
         if (capacidad > tam) {
             tipodato* nuevo = new tipodato[tam];
-            std::ranges::copy(std::ranges::subrange(begin(), begin() + tam), nuevo);
+            std::ranges::copy(std::ranges::subrange{begin(), begin() + tam}, nuevo);
             delete[] datos;
             datos = nuevo;
             capacidad = tam;
@@ -1891,7 +2558,7 @@ public:
     * @return Número de apariciones del valor.
     */
     size_t contar(const tipodato &dato) const {
-        size_t contador = 0;
+        size_t contador = 0;                                //OMG TAYLOR SWIFT REFERENCE!!!!!!! 1989!!!!
         for (size_t i = 0; i < tam; i++) {
             if (datos[i] == dato) {
                 ++contador;
@@ -2072,6 +2739,7 @@ public:
         return datos;
     }
     ///@}
+
     //
     // [DEBUG]
     //
@@ -2082,4 +2750,10 @@ public:
 
 };
 
+#if __cplusplus >= 202002L
+namespace std::ranges {
+    template<typename T, typename Alloc>
+    inline constexpr bool enable_borrowed_range<::Vector<T, Alloc>> = true;
+}
+#endif
 #endif //VECTOR_H
