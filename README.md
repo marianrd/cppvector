@@ -64,14 +64,14 @@ The library supports all C++ versions (note that some features may not be availa
 ### Custom methods
 | cppvector (English) | cppvector (Spanish) |
 |---------------------|---------------------|
-| ordenar()           | ordenar()           |
-| ordenarBurbuja()    | ordenarBurbuja()    |
-| mostrar()           | mostrar()           |
-| eliminarDuplicados() | eliminarDuplicados() |
-| invertir()          | invertir()          |
-| intercambiarIndices() | intercambiarIndices() |
-| reemplazar()        | reemplazar()        |
-| subvector()         | subvector()         |
+| sort()              | ordenar()           |
+| bubbleSort()        | ordenarBurbuja()    |
+| display()           | mostrar()           |
+| removeDuplicates()  | eliminarDuplicados() |
+| reverse ()          | invertir()          |
+| swapIndices()       | intercambiarIndices() |
+| replaceAll()        | reemplazar()        |
+| slice()             | subvector()         |
 
 #### Custom methods explanation
 
@@ -88,7 +88,7 @@ The library supports all C++ versions (note that some features may not be availa
 - Add allocator support
 - Add append_range() support (C++23+)
 - Add insert_range() support (C++23+)
-- Translate more methods to Spanish
+- ~~Translate more methods to Spanish~~
 
 ### Usage example
 ```c++
