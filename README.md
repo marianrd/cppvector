@@ -1,5 +1,5 @@
 > [!NOTE]
-> This is an educational/personal project, so expect it not to be as optimized/as functional as std::vector
+> This is an educational/personal project, don't expect it to be as optimized or functional as std::vector
 
 # cppvector
 
