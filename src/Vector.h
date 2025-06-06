@@ -1,0 +1,2085 @@
+/**
+ * @file Vector.h
+ * @brief Implementacion de un vector dinamico similar a std::vector
+ *
+ * Esta clase implementa un contenedor dinamico que almacena elementos tipo 'tipodato'
+ * Además, es compatible con algoritmos de STL y es interoperable con std::vector.
+ * Proporciona los metodos de std::vector, además de los mismos en Español.
+ *
+ * @include iostream
+ * @include algorithm
+ * @include cstring
+ * @include limits
+ * @include stdexcept
+ *
+ * @author Marian
+ * @date May 31st, 2025
+ *
+ **/
+
+#ifndef VECTOR_H
+#define VECTOR_H
+
+#include <iostream>
+#include <algorithm>
+#include <cstring>
+#include <limits>
+#include <stdexcept>
+
+#if __cplusplus>=201703L
+#include <ranges>
+/**
+* @brief Compara la igualdad entre dos valores en C++17 y posteriores.
+*
+* Esta implementación cuenta con una especialización para datos de punto flotante
+* y datos que no son de punto flotante.
+*
+* @tparam T Tipo de datos a comparar.
+* @param a Primer valor.
+* @param b Segundo valor.
+* @return `true` si los valores son iguales, `false` en caso contrario.
+*
+* @note
+* - Para datos que **no son de punto flotante**, utiliza `==` para la comparación.
+* - Para datos **de punto flotante**, utiliza una comparación con tolerancia basada en
+*   `std::numeric_limits<T>::epsilon()` para evitar errores de precisión.
+*
+*/
+
+template<typename T>
+std::enable_if_t<!std::is_floating_point_v<T>, bool>
+areEqual(const T& a, const T& b) {
+    return a == b;
+}
+
+template<typename T>
+std::enable_if_t<std::is_floating_point_v<T>, bool>
+areEqual(const T& a, const T& b) {
+    return std::abs(a - b) <= std::numeric_limits<T>::epsilon();
+}
+#endif
+#if __cplusplus>=201103L && __cplusplus<201703L
+/**
+ * @brief Compara la igualdad entre dos valores en C++11 y C++14.
+ *
+ * Esta implementación también cuenta con especializaciones para datos
+ * de tipo flotante y no flotante.
+ *
+ * @tparam T Tipo de datos a comparar.
+ * @param a Primer valor.
+ * @param b Segundo valor.
+ * @return `true` si los valores son iguales, `false` en caso contrario.
+ *
+ * **Notas:**
+ * - Para datos que **no son de punto flotante**, compara con `==`.
+ * - Para datos **de punto flotante**, maneja la comparación usando
+ *   `std::numeric_limits<T>::epsilon()` para tomar en cuenta errores numéricos.
+ */
+template<typename T>
+typename std::enable_if<!std::is_floating_point<T>::value, bool>::type
+areEqual(const T& a, const T& b) {
+    return a == b;
+}
+
+template<typename T>
+typename std::enable_if<std::is_floating_point<T>::value, bool>::type
+areEqual(const T& a, const T& b) {
+    return std::abs(a - b) <= std::numeric_limits<T>::epsilon();
+}
+#endif
+#if __cplusplus<201103L
+#include <cmath>
+/**
+ * @brief Verifica si un tipo es de punto flotante.
+ *
+ * Esta plantilla de estructura define un valor constante que indica si
+ * un tipo `T` es un tipo flotante (`float`, `double`, `long double`).
+ *
+ * @tparam T Tipo a analizar.
+ */
+template<typename T>
+struct is_floating_point {
+    static const bool value = false;
+};
+
+template<>
+struct is_floating_point<float> {
+    static const bool value = true;
+};
+
+template<>
+struct is_floating_point<double> {
+    static const bool value = true;
+};
+
+template<>
+struct is_floating_point<long double> {
+    static const bool value = true;
+};
+
+/**
+ * @brief Implementación para comparar igualdad de datos.
+ *
+ * Esta plantilla maneja la comparación según si el tipo es de punto flotante
+ * o no.
+ *
+ * @tparam T Tipo de datos.
+ * @tparam IsFloat `true` si el tipo es de punto flotante, `false` en caso contrario.
+ */
+
+template<typename T, bool IsFloat>
+struct AreEqualImpl {
+    static bool equal(const T& a, const T& b) {
+        return a == b;
+    }
+};
+
+// Especialización para tipo flotante
+template<typename T>
+struct AreEqualImpl<T, true> {
+    /**
+     * @brief Compara igualdad para datos que no son de punto flotante.
+     *
+     * @param a Primer valor.
+     * @param b Segundo valor.
+     * @return `true` si los valores son iguales, `false` en caso contrario.
+     */
+    static bool equal(const T& a, const T& b) {
+        return std::fabs(a - b) <= std::numeric_limits<T>::epsilon();
+    }
+};
+
+template<typename T>
+bool areEqual(const T& a, const T& b) {
+    return AreEqualImpl<T, is_floating_point<T>::value>::equal(a, b);
+}
+
+#endif
+
+// Inicio vector dinamico
+
+/**
+* @struct Vector
+* @brief Una implementacion de un vector dinamico similar a std::vector que soporta algoritmos STL.
+*
+* La estructura Vector soporta la asignacion y manejo de un array de elementos de tipo 'tipodato'.
+* Proporciona diferentes metodos de inicializacion, iteradores para el recorrido del vector y soporte
+* para move semantics en las versiones superiores a C++11.
+*
+* @tparam tipodato Tipo de dato almacenado
+*/
+template<typename tipodato, typename Allocator = std::allocator<tipodato>>
+struct Vector {
+private:
+    tipodato *datos;    /// < Puntero al arreglo dinamico
+    size_t tam;         /// < Cantidad actual de elementos
+    size_t capacidad;   /// < Capacidad total reservada
+    Allocator alloc;    /// < Allocator
+
+public:
+    using value_type = tipodato;
+    using reference = tipodato&;
+    using const_reference = const tipodato&;
+    using pointer = tipodato*;
+    using const_pointer = const tipodato*;
+    using iterator = tipodato*;
+    using const_iterator = const tipodato*;
+
+    //Constructores
+#if __cplusplus<201103L
+    /**
+     * @brief Constructor para C++98 y C++04
+     * Crea un vector vacio con capacidad y tamaño 0
+     **/
+    Vector() {
+        datos = NULL;
+        tam = 0;
+        capacidad = 0;
+    }
+#endif
+#if __cplusplus>=201103L
+    /**
+     * @brief Constructor para C++98 y C++04
+     * Crea un vector vacio con capacidad y tamaño 0.
+     * Constructor para C++11+, usando nullptr en vez de NULL
+     **/
+    Vector() {
+        datos = nullptr;
+        tam = 0;
+        capacidad = 0;
+    }
+
+    /**
+     * @brief Constructor para la initializer list
+     *  @param lista
+     **/
+    Vector(std::initializer_list<tipodato> lista) {
+        tam = capacidad = lista.size();
+        datos = new tipodato[capacidad];
+        size_t i = 0;
+        for (auto &dato : lista) {
+            datos[i++] = dato;
+        }
+    }
+#endif
+
+    /**
+     * @brief Constructor que admite una capacidad y valor inicial
+     * @param Capacidad
+     * @param valor
+     */
+    Vector(size_t Capacidad, const tipodato &valor = tipodato()) {
+        datos = new tipodato[Capacidad];
+        tam = Capacidad;
+        capacidad = Capacidad;
+        for (size_t i = 0; i < Capacidad; i++) {
+            datos[i] = valor;
+        }
+    }
+
+    /**
+     * @brief Destructor de la clase Vector
+     */
+    ~Vector() {
+        delete[] datos;
+    }
+
+
+#if __cplusplus>=201103L
+    //
+    //  Move semantics (solo >=C++11)
+    //
+
+    /**
+     * @brief Constructor para move semantics, admite otro vector como parametro
+     * @param otro
+     */
+    Vector(Vector &&otro) noexcept {
+        datos = otro.datos;
+        tam = otro.tam;
+        capacidad = otro.capacidad;
+        otro.datos = nullptr;
+        otro.tam = 0;
+        otro.capacidad = 0;
+    }
+
+    /**
+     * @brief Operador de asignacion
+     * @param otro
+     * @return
+     */
+    Vector &operator=(Vector &&otro) noexcept {
+        if (this!=&otro) {
+            delete[] datos;
+            datos = otro.datos;
+            tam = otro.tam;
+            capacidad = otro.capacidad;
+            otro.datos = nullptr;
+            otro.tam = 0;
+            otro.capacidad = 0;
+        }
+        return *this;
+    }
+#endif
+#if __cplusplus<201103L
+    /**
+     * Constructor que permite la inclusion de otro vector como inicializador
+     * @param otro
+     */
+    Vector(const Vector &otro) {
+        tam = otro.tam;
+        capacidad = otro.capacidad;
+        datos = new tipodato[capacidad];
+        for (size_t i = 0; i < tam; i++) {
+            datos[i] = otro.datos[i];
+        }
+    }
+#endif
+#if __cplusplus>=201103L
+    /**
+     * Constructor que permite la inclusion de otro vector como inicializador
+     * @param otro
+     */
+    Vector(const Vector& otro) {
+        Vector temp(otro.tam);
+        for (size_t i = 0; i < otro.tam; ++i)
+            temp.datos[i] = otro.datos[i];
+        temp.tam = otro.tam;
+        swap(temp);
+    }
+#endif
+    //
+    //  INICIO SECCION ITERADORES
+    //  (usados para range based loops, algoritmos de ordenamiento y otras cosas)
+    //
+
+    /**
+     * @class Iterator
+     * @brief Define un iterador genérico para el recorrido de colecciones de datos.
+     *
+     * La clase Iterator proporciona herramientas básicas para iterar sobre elementos de una colección.
+     * Permite moverse a través de los elementos sucesivos de la estructura de datos, facilitando
+     * el acceso y manipulación de ellos.
+     */
+    struct Iterator {
+        tipodato *ptr;
+
+        //  Cosas requeridas para que el iterador funcione correctamente
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = tipodato*;
+        using reference = tipodato&;
+
+        /**
+         * @brief Constructor del iterador
+         * @param p
+         */
+        Iterator(tipodato *p) {
+            ptr = p;
+        }
+        /**
+         * @brief Constructor del iterador
+         * @param otro
+         *
+         **/
+        Iterator(const Iterator &otro) {
+            ptr = otro.ptr;
+        }
+
+        /**
+         * @brief Operador para asignar un iterador a otro
+         * @param otro
+         * @return
+         */
+        Iterator &operator=(const Iterator &otro) {
+            if (this!=&otro) ptr = otro.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de desrefenciación
+         * @return
+         */
+        tipodato &operator*() {
+            return *ptr;
+        }
+
+        /**
+         * @brief Operador flecha para acceder a miembros del objeto apuntado
+         * @return
+         */
+        tipodato *operator->() {
+            return ptr;
+        }
+
+        //  Operaciones de incremento/decremento
+
+        /**
+         * @brief Operador de pre-incremento.
+         * Avanza el iterador al siguiente elemento.
+         * @return Referencia al iterador modificado.
+         */
+        Iterator &operator++() {
+            ++ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de post-incremento.
+         * Avanza el iterador al siguiente elemento, devolviendo una copia del estado previo.
+         * @return Copia del iterador antes del incremento.
+         */
+        Iterator operator++(int) {
+            Iterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+
+        /**
+        * @brief Operador de pre-decremento.
+        * Retrocede el iterador al elemento anterior.
+        * @return Referencia al iterador modificado.
+        */
+        Iterator &operator--() {
+            --ptr;
+            return *this;
+        }
+
+        /**
+        * @brief Operador de post-decremento.
+        * Retrocede el iterador al elemento anterior, devolviendo una copia del estado previo.
+        * @return Copia del iterador antes del decremento.
+        */
+        Iterator operator--(int) {
+            Iterator aux = *this;
+            --ptr;
+            return aux;
+        }
+
+        //  Operaciones Aritmeticas
+
+        /**
+         * @brief Operador de suma para avanzar el iterador.
+         * @param n Número de posiciones a avanzar.
+         * @return Nuevo iterador desplazado n posiciones.
+         */
+        Iterator operator+(int n) const {
+            return Iterator(ptr+n);
+        }
+
+        /**
+        * @brief Operador de resta para retroceder el iterador.
+        * @param n Número de posiciones a retroceder.
+        * @return Nuevo iterador desplazado -n posiciones.
+        */
+        Iterator operator-(int n) const {
+            return Iterator(ptr-n);
+        }
+
+        /**
+         * @brief Operador de suma-igual.
+         * Avanza el iterador n posiciones.
+         * @param n Número de posiciones a avanzar.
+         * @return Referencia al iterador modificado.
+         */
+        Iterator &operator+=(int n) {
+            ptr+=n;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de resta-igual.
+         * Retrocede el iterador n posiciones.
+         * @param n Número de posiciones a retroceder.
+         * @return Referencia al iterador modificado.
+         */
+        Iterator &operator-=(int n) {
+            ptr-=n;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de diferencia entre iteradores.
+         * @param o Otro iterador.
+         * @return Número de posiciones de diferencia entre los iteradores.
+         */
+        difference_type operator-(const Iterator &o) const {
+            return ptr - o.ptr;
+        }
+
+        /**
+         * @brief Acceso por índice relativo desde la posición actual del iterador.
+         * @param indice Índice relativo.
+         * @return Referencia al elemento en la posición indicada.
+         */
+        tipodato &operator[](int indice) {
+            return *(ptr+indice);
+        }
+
+        //  Comparaciones
+        /**
+         * @brief Operador de desigualdad.
+         * @param o Otro iterador.
+         * @return true si los iteradores apuntan a distintas posiciones.
+         */
+        bool operator!=(const Iterator &o) const {
+            return ptr != o.ptr;
+        }
+        /**
+         * @brief Operador menor que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición anterior.
+         */
+        bool operator<(const Iterator &o) const {
+            return ptr < o.ptr;
+        }
+        /**
+         * @brief Operador de igualdad.
+         * @param o Otro iterador.
+         * @return true si los iteradores apuntan a la misma posición.
+         */
+        bool operator==(const Iterator &o) const {
+            return ptr == o.ptr;
+        }
+        /**
+         * @brief Operador mayor que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición posterior.
+         */
+        bool operator>(const Iterator &o) const {
+            return ptr > o.ptr;
+        }
+        /**
+         * @brief Operador menor o igual que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición anterior o igual.
+         */
+        bool operator<=(const Iterator &o) const {
+            return ptr <= o.ptr;
+        }
+        /**
+         * @brief Operador mayor o igual que.
+         * @param o Otro iterador.
+         * @return true si el iterador actual apunta a una posición posterior o igual.
+         */
+        bool operator>=(const Iterator &o) const {
+            return ptr >= o.ptr;
+        }
+    };
+
+    /**
+     * @brief Metodo que apunta al inicio del vector para ser usado en un iterador
+     * @return
+     */
+    Iterator begin() const {
+        return Iterator(datos);
+    }
+
+    /**
+     * @brief Metodo que apunta al final del vector para ser usado en un iterador
+     * @return
+     */
+    Iterator end() const {
+        return Iterator(datos+tam);
+    }
+
+    /**
+     * @class ReverseIterator
+     * @brief Iterador inverso para recorrer colecciones desde el final hacia el principio.
+     *
+     * La clase ReverseIterator proporciona funcionalidad completa de un iterador aleatorio inverso,
+     * incluyendo soporte para aritmética de punteros, acceso aleatorio, comparación entre iteradores,
+     * y conversión a iterador directo mediante el método `base()`.
+     *
+     * @tparam tipodato Tipo de dato que almacena la colección.
+     */
+    struct ReverseIterator {
+        //  Cosas requeridas para que el iterador funcione correctamente
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = tipodato*;
+        using reference = tipodato&;
+
+        tipodato *ptr;  /// < Puntero al elemento actual
+
+        /**
+        * @brief Constructor explícito desde puntero.
+        * @param p Puntero al elemento.
+        */
+        ReverseIterator(tipodato *p) {
+            ptr=p;
+        }
+
+        /**
+         * @brief Constructor por copia.
+         * @param otro Otro ReverseIterator a copiar.
+         */
+        ReverseIterator(const ReverseIterator &otro) {
+            ptr = otro.ptr;
+        }
+
+        /**
+         * @brief Operador de asignación.
+         * @param otro ReverseIterator a asignar.
+         * @return Referencia al iterador resultante.
+         */
+        ReverseIterator &operator=(const ReverseIterator &otro) {
+            if (this!=&otro) ptr = otro.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Retorna un iterador directo apuntando al siguiente elemento (inverso de reverse).
+         * @return Un objeto de tipo Iterator.
+         */
+        Iterator base() const {
+            return Iterator(ptr+1);
+        }
+
+        /**
+         * @brief Operador de desreferenciación.
+         * @return Referencia al elemento actual.
+         */
+        tipodato &operator*() {
+            return *ptr;
+        }
+        /**
+        * @brief Operador flecha para acceso a miembros.
+        * @return Puntero al elemento actual.
+        */
+        tipodato &operator->() {
+            return &(*ptr);
+        }
+
+        /**
+         * @brief Conversión a Iterator directo.
+         */
+        operator Iterator() const {
+            return Iterator(ptr + 1);
+        }
+
+        //  Operador de incremento
+        ReverseIterator &operator++() {
+            --ptr; return *this;
+        }
+        //  Operador de incremento prefijo
+        ReverseIterator operator++(int) {
+            ReverseIterator aux = *this;
+            --ptr;
+            return aux;
+        }
+        //  Operador de decremento
+        ReverseIterator &operator--() {
+            ++ptr; return *this;
+        }
+        //  Operador de decremento prefijo
+        ReverseIterator operator--(int) {
+            ReverseIterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+
+        //  Operador + que suma un entero al iterador
+        ReverseIterator operator+(int n) const {
+            return ReverseIterator(ptr-n);
+        }
+        //  Operador - que resta un entero al iterador
+        ReverseIterator operator-(int n) const {
+            return ReverseIterator(ptr+n);
+        }
+        //  Operador que agrega un valor entero al iterador
+        ReverseIterator &operator+=(int n) {
+            ptr-=n;
+            return *this;
+        }
+        //  Operador que quita un valor entero del iterador
+        ReverseIterator &operator-=(int n) {
+            ptr+=n;
+            return *this;
+        }
+
+        /**
+        * @brief Diferencia entre dos iteradores.
+        * @param o Otro ReverseIterator.
+        * @return Número de elementos entre ellos.
+        */
+        int operator-(const ReverseIterator &o) const {
+            return o.ptr - ptr;
+        }
+
+        /**
+         * @brief Acceso aleatorio a elementos mediante índice.
+         * @param indice Índice relativo desde el iterador actual.
+         * @return Referencia al elemento correspondiente.
+         */
+        tipodato &operator[](int indice) {
+            return *(ptr-indice);
+        }
+
+        //  Operadores booleanos
+        //  Operador distinto de
+        bool operator!=(const ReverseIterator &o) const {
+            return ptr != o.ptr;
+        }
+        //  Operador igual que
+        bool operator==(const ReverseIterator &o) const {
+            return ptr == o.ptr;
+        }
+        //  Operador menor que
+        bool operator<(const ReverseIterator &o) const {
+            return ptr > o.ptr;
+        }
+        //  Operador mayor que
+        bool operator>(const ReverseIterator &o) const {
+            return ptr < o.ptr;
+        }
+        //  Operador menor o igual que
+        bool operator<=(const ReverseIterator &o) const {
+            return ptr >= o.ptr;
+        }
+        //  Operador mayor o igual que
+        bool operator>=(const ReverseIterator &o) const {
+            return ptr <= o.ptr;
+        }
+    };
+    /**
+     * @brief Retorna un iterador inverso apuntando al último elemento.
+     * @return ReverseIterator al final de la colección (último elemento).
+     */
+    ReverseIterator rbegin() const {
+        return ReverseIterator(datos+tam-1);
+    }
+    /**
+     * @brief Retorna un iterador inverso apuntando antes del primer elemento.
+     * @return ReverseIterator al "fin" lógico del recorrido inverso.
+     */
+    ReverseIterator rend() const {
+        return ReverseIterator(datos-1);
+    }
+
+    //Const Iterator
+    /**
+     * @class ConstIterator
+     * @brief Define un iterador constante genérico para el recorrido de colecciones de datos.
+     *
+     * La clase ConstIterator proporciona herramientas básicas para iterar sobre elementos de una colección.
+     * Permite moverse a través de los elementos sucesivos de la estructura de datos, facilitando
+     * el acceso y manipulación de ellos.
+     */
+    struct ConstIterator {
+        const tipodato *ptr;    /// < Puntero al elemento actual
+        //  Cosas requeridas para que el iterador funcione correctamente
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = tipodato*;
+        using reference = tipodato&;
+
+        /**
+         * @brief Constructor por defecto (C++04 o anterior).
+         * @param p Puntero al dato constante.
+         */
+        #if __cplusplus<201103L
+        ConstIterator(const tipodato *p = NULL) {
+            ptr = p;
+        }
+        #endif
+        /**
+         * @brief Constructor para nuevas versiones de C++ (C++11 o superior).
+         * @param p Puntero al dato constante.
+         */
+        #if __cplusplus>=201103L
+        ConstIterator(const tipodato *p = nullptr) {
+            ptr = p;
+        }
+        #endif
+
+        /**
+        * @brief Constructor copia.
+        * @param o Otro iterador constante.
+        */
+        ConstIterator(const ConstIterator &o) {
+            ptr = o.ptr;
+        }
+
+        /**
+         * @brief Operador de asignación.
+         * @param o Otro iterador constante.
+         * @return Referencia a este iterador.
+         */
+        ConstIterator &operator=(const ConstIterator &o) {
+            if (this!=&o) ptr = o.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Operador de desreferenciación.
+         * @return Referencia constante al dato apuntado.
+         */
+        const tipodato &operator*() {
+            return *ptr;
+        }
+        /**
+         * @brief Operador flecha.
+         * @return Puntero constante al dato apuntado.
+         */
+        const tipodato *operator->() {
+            return ptr;
+        }
+
+        //  Operador de incremento
+        ConstIterator &operator++() {
+            ++ptr;
+            return *this;
+        }
+        //  Operador de incremento postfijo
+        ConstIterator operator++(int) {
+            ConstIterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+        //  Operador de decremento
+        ConstIterator &operator--() {
+            --ptr;
+            return *this;
+        }
+        //  Operador de decremento postfijo
+        ConstIterator operator--(int) {
+            ConstIterator aux = *this;
+            --ptr;
+            return aux;
+        }
+
+        //  Operador + para sumar un valor entero al iterador
+        ConstIterator operator+(int n) const {
+            return ConstIterator(ptr+n);
+        }
+        //  Operador - para restar un valor entero al iterador
+        ConstIterator operator-(int n) const {
+            return ConstIterator(ptr-n);
+        }
+        //  Operador para agregar un valor entero al iterador
+        ConstIterator &operator+=(int n) {
+            ptr+=n;
+            return *this;
+        }
+        //  Operador para quitar un valor entero del iterador
+        ConstIterator &operator-=(int n) {
+            ptr-=n;
+            return *this;
+        }
+
+        /**
+        * @brief Diferencia entre dos iteradores.
+        * @param o Otro ReverseIterator.
+        * @return Número de elementos entre ellos.
+        */
+        difference_type operator-(const ConstIterator &o) const {
+            return ptr-o.ptr;
+        }
+
+        /**
+         * @brief Operador de acceso por índice.
+         * @param indice Desplazamiento desde el iterador actual.
+         * @return Referencia constante al dato en la posición.
+         */
+        const tipodato &operator[](int indice) {
+            return *(ptr+indice);
+        }
+
+        //  Operadores booleanos
+        //  Operador igual que
+        bool operator==(const ConstIterator &o) const {
+            return ptr == o.ptr;
+        }
+        //  Operador distinto de
+        bool operator!=(const ConstIterator &o) const {
+            return ptr != o.ptr;
+        }
+        //  Operador menor que
+        bool operator<(const ConstIterator &o) const {
+            return ptr < o.ptr;
+        }
+        //  Operador mayor que
+        bool operator>(const ConstIterator &o) const {
+            return ptr > o.ptr;
+        }
+        //  Operador menor o igual que
+        bool operator<=(const ConstIterator &o) const {
+            return ptr >= o.ptr;
+        }
+        //  Operador mayor o igual que
+        bool operator>=(const ConstIterator &o) const {
+            return ptr <= o.ptr;
+        }
+    };
+
+    /**
+     * @brief Devuelve un iterador constante al inicio de la colección.
+     * @return ConstIterator apuntando al primer elemento.
+     */
+    ConstIterator cbegin() const {
+        return ConstIterator(datos);
+    }
+    /**
+     * @brief Devuelve un iterador constante al final de la colección.
+     * @return ConstIterator apuntando justo después del último elemento.
+     */
+    ConstIterator cend() const {
+        return ConstIterator(datos+tam);
+    }
+
+    //  Const Reverse Iterator
+    /**
+     * @struct ConstReverseIterator
+     * @brief Iterador constante reverso para estructuras con acceso aleatorio.
+     *
+     * Permite recorrer los elementos de la colección en orden inverso sin modificar su contenido.
+     * Cumple con los requisitos de un iterador aleatorio.
+     */
+    struct ConstReverseIterator {
+        //  Cosas requeridas para que el iterador funcione correctamente
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = tipodato;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const tipodato*;
+        using reference = const tipodato&;
+
+        tipodato *ptr;
+
+        /**
+         * @brief Constructor.
+         * @param p Puntero al elemento actual (último de la colección).
+         */
+        ConstReverseIterator(tipodato *p) {
+            ptr=p;
+        }
+
+        /**
+        * @brief Constructor copia.
+        * @param otro Otro ConstReverseIterator.
+        */
+        ConstReverseIterator(const ConstReverseIterator &otro) {
+            ptr = otro.ptr;
+        }
+
+        /**
+         * @brief Operador de asignación.
+         * @param otro Otro iterador a asignar.
+         * @return Referencia a este iterador.
+         */
+        ConstReverseIterator &operator=(const ConstReverseIterator &otro) {
+            if (this!=&otro) ptr = otro.ptr;
+            return *this;
+        }
+
+        /**
+         * @brief Retorna un ConstIterator correspondiente a la posición "base" (siguiente elemento).
+         * @return ConstIterator apuntando a `ptr + 1`.
+         */
+        ConstIterator base() const {
+            return ConstIterator(ptr+1);
+        }
+
+        /**
+         * @brief Conversión implícita a Iterator.
+         * @return Iterator equivalente apuntando a `ptr + 1`.
+         */
+        operator Iterator() const {
+            return Iterator(ptr + 1);
+        }
+
+        /**
+         * @brief Operador de desreferenciación.
+         * @return Referencia constante al elemento actual.
+         */
+        const tipodato &operator*() {
+            return *ptr;
+        }
+        /**
+        * @brief Operador flecha.
+        * @return Puntero constante al elemento actual.
+        */
+        const tipodato &operator->() {
+            return &(*ptr);
+        }
+
+        //  Operador de incremento
+        ConstReverseIterator &operator++() {
+            --ptr; return *this;
+        }
+        //  Operador de incremento postfijo
+        ConstReverseIterator operator++(int) {
+            ConstReverseIterator aux = *this;
+            --ptr;
+            return aux;
+        }
+        //  Operador de decremento
+        ConstReverseIterator &operator--() {
+            ++ptr; return *this;
+        }
+        //  Operador de decremento postfijo
+        ConstReverseIterator operator--(int) {
+            ConstReverseIterator aux = *this;
+            ++ptr;
+            return aux;
+        }
+
+        //  Operador para sumar un valor entero al iterador
+        ConstReverseIterator operator+(int n) const {
+            return ConstReverseIterator(ptr-n);
+        }
+        //  Operador para restar un valor entero del iterador
+        ConstReverseIterator operator-(int n) const {
+            return ConstReverseIterator(ptr+n);
+        }
+        //  Operador para agregar un valor entero al iterador
+        ConstReverseIterator &operator+=(int n) {
+            ptr-=n;
+            return *this;
+        }
+        //  Operador para quitar un valor entero del iterador
+        ConstReverseIterator &operator-=(int n) {
+            ptr+=n;
+            return *this;
+        }
+
+        //  Operador para restar un iterador de otro
+        int operator-(const ConstReverseIterator &o) const {
+            return ptr - o.ptr;
+        }
+
+        /**
+         * @brief Operador de acceso por índice.
+         * @param indice Desplazamiento desde el iterador actual (hacia atrás).
+         * @return Referencia constante al elemento en la posición indicada.
+         */
+        const tipodato &operator[](int indice) {
+            return *(ptr-indice);
+        }
+
+        //  Operadores booleanos
+        //  Operador distinto de
+        bool operator!=(const ConstReverseIterator &o) const {
+            return ptr != o.ptr;
+        }
+        //  Operador igual a
+        bool operator==(const ConstReverseIterator &o) const {
+            return ptr == o.ptr;
+        }
+        //  Operador menor que
+        bool operator<(const ConstReverseIterator &o) const {
+            return ptr > o.ptr;
+        }
+        //  Operador mayor que
+        bool operator>(const ConstReverseIterator &o) const {
+            return ptr < o.ptr;
+        }
+        //  Operador menor o igual que
+        bool operator<=(const ConstReverseIterator &o) const {
+            return ptr >= o.ptr;
+        }
+        //  Operador mayor o igual que
+        bool operator>=(const ConstReverseIterator &o) const {
+            return ptr <= o.ptr;
+        }
+    };
+    /**
+     * @brief Devuelve un iterador constante reverso al final de la colección.
+     * @return ConstReverseIterator apuntando al último elemento.
+     */
+    ConstReverseIterator crbegin() const {
+        return ConstReverseIterator(datos+tam-1);
+    }
+    /**
+     * @brief Devuelve un iterador constante reverso al inicio de la colección.
+     * @return ConstReverseIterator apuntando justo antes del primer elemento.
+     */
+    ConstReverseIterator crend() const {
+        return ConstReverseIterator(datos-1);
+    }
+
+    //
+    //  FIN DE LA SECCION DE ITERADORES
+    //
+
+    /**
+     * @brief Operador de asignación.
+     *
+     * Copia el contenido de otro vector en este vector.
+     *
+     * @param otro Vector a copiar.
+     * @return Referencia a este vector.
+     */
+    Vector& operator=(const Vector &otro) {
+        if (this != &otro) {
+            tipodato *nuevo = new tipodato[otro.capacidad];
+            for (size_t i = 0; i < otro.tam; ++i) {
+                nuevo[i] = otro.datos[i];
+            }
+            delete[] datos;
+            datos = nuevo;
+            tam = otro.tam;
+            capacidad = otro.capacidad;
+        }
+        return *this;
+    }
+
+    Vector& operator=(Vector otro) {
+        swap(otro);
+        return *this;
+    }
+
+    /**
+    * @brief Operador de salida.
+    *
+    * Permite imprimir el contenido del vector usando std::ostream.
+    *
+    * @param os Flujo de salida.
+    * @param v Vector a imprimir.
+    * @return Referencia al flujo de salida.
+    */
+    friend std::ostream &operator<<(std::ostream &os, const Vector &v) {
+        os << "[";
+        for (size_t i = 0; i < v.tam; i++) {
+            if (i>0) os << ", ";
+            os << v.datos[i];
+        }
+        os << "]";
+        return os;
+    }
+
+    /**
+     * @brief Compara si dos vectores son iguales.
+     *
+     * Usa la función auxiliar areEqual para comparar los elementos.
+     *
+     * @param otro Vector a comparar.
+     * @return true si son iguales, false en caso contrario.
+     */
+    bool operator==(const Vector &otro) const {
+        if (tam!=otro.tam) return false;
+        for (size_t i = 0; i < tam; i++) {
+            if (!areEqual(datos[i], otro.datos[i])) {
+                return false;
+            }
+        }
+        return true;
+
+    }
+
+    /**
+     * @brief Compara si dos vectores son diferentes.
+     *
+     * @param otro Vector a comparar.
+     * @return true si son diferentes, false si son iguales.
+     */
+    bool operator!=(const Vector &otro) const {
+        if (tam != otro.tam) return true;
+        for (size_t i = 0; i < tam; i++) {
+            if (datos[i] != otro.datos[i]) return true;
+        }
+        return false;
+    }
+
+    //  Metodos de emplace y emplace back (SOLO COMPATIBLES CON C++11+)
+#if __cplusplus>=201103L
+    /**
+     * @brief Construye un objeto en una posición específica del vector.
+     *
+     * Requiere C++11 o superior. Realiza construcción en el lugar.
+     *
+     * @tparam Args Tipos de los argumentos.
+     * @param indice Posición en la que se construirá el objeto.
+     * @param args Argumentos para el constructor de tipodato.
+     */
+    template<typename... Args>
+    void emplace(size_t indice, Args&&... args) {
+        if (indice > tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+
+        if (tam == capacidad) {
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        }
+
+        for (size_t i = tam; i > indice; --i) {
+            datos[i] = std::move(datos[i - 1]);
+        }
+
+        new(&datos[indice]) tipodato(std::forward<Args>(args)...);
+
+        ++tam;
+    }
+
+    /**
+     * @brief Construye un objeto al final del vector.
+     *
+     * Requiere C++11 o superior. Realiza construcción en el lugar.
+     *
+     * @tparam Args Tipos de los argumentos.
+     * @param args Argumentos para el constructor de tipodato.
+     */
+    template <typename... Args>
+    void emplace_back(Args&&... args) {
+        if (tam == capacidad) {
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        }
+        new(&datos[tam]) tipodato(std::forward<Args>(args)...);
+        ++tam;
+    }
+#endif
+
+    /**
+     * @brief Redimensiona el vector.
+     *
+     * Cambia el tamaño del vector y rellena con valores si es necesario.
+     *
+     * @param nuevoTam Nuevo tamaño.
+     * @param dato Valor con el que se rellenan los nuevos elementos (por defecto tipodato()).
+     */
+    void redimensionar(size_t nuevoTam, const tipodato &dato = tipodato()) {
+        if (nuevoTam < tam) {
+            tam = nuevoTam;
+            if (tam < capacidad / 2) {
+                reducirCapacidad();
+            }
+        } else {
+            if (nuevoTam > capacidad) {
+                cambiarCapacidad(nuevoTam);
+            }
+            for (size_t i = tam; i < nuevoTam; i++) {
+                datos[i] = dato;
+            }
+        }
+        tam = nuevoTam;
+    }
+
+    /**
+     * @brief Libera los recursos del vector.
+     *
+     * Reinicia tamaño y capacidad a cero.
+     */
+    void clear() {
+        delete[] datos;
+        datos = nullptr;
+        tam = 0;
+        capacidad = 0;
+    }
+#if __cplusplus<201103L
+    /**
+     * @brief Agrega un valor al final del vector.
+     *
+     * @param dato Valor a agregar.
+     */
+    void agregarFinal(const tipodato &dato) {
+        if (tam == capacidad) {
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        }
+        datos[tam++] = dato;
+    }
+#endif
+#if __cplusplus >= 201103L
+    /**
+     * @brief Agrega un valor al final del vector.
+     *
+     * @param dato Valor a agregar.
+     */
+    void agregarFinal(tipodato&& dato) {
+        if (tam == capacidad)
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        datos[tam++] = std::move(dato);
+    }
+
+    /**
+    * @brief Agrega un valor al final del vector.
+    *
+    * @param dato Valor a agregar.
+    */
+    void agregarFinal(const tipodato& dato) {
+        if (tam == capacidad)
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        datos[tam++] = dato;
+    }
+#endif
+
+
+    /**
+     * @brief Obtiene el último elemento del vector.
+     *
+     * @return Referencia al último elemento.
+     * @throws std::out_of_range si el vector está vacío.
+     */
+    tipodato &ultimo() {
+        if (tam==0) throw std::out_of_range("No hay elementos en el vector");
+        return datos[tam-1];
+    }
+
+    /**
+     * @brief Accede a un valor por índice (no verificado).
+     *
+     * @param indice Índice del valor.
+     * @return Referencia al valor.
+     */
+    tipodato &operator[](size_t indice) {
+        return datos[indice];
+    }
+
+    /**
+    * @brief Accede a un valor por índice (no verificado).
+    *
+    * @param indice Índice del valor.
+    * @return Referencia constante al valor.
+    */
+    const tipodato &operator[](size_t indice) const {
+        return datos[indice];
+    }
+
+    /**
+     * @brief Devuelve el valor ubicado en un índice específico.
+     *
+     * Verifica los límites del vector.
+     *
+     * @param indice Índice del valor.
+     * @return Referencia al valor.
+     * @throws std::out_of_range si el índice es inválido.
+     */
+    tipodato &en(size_t indice) {
+        if (indice>=tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        return datos[indice];
+    }
+
+    /**
+     * @brief Devuelve el valor ubicado en un índice específico.
+     *
+     * Verifica los límites del vector.
+     *
+     * @param indice Índice del valor.
+     * @return Referencia al valor.
+     * @throws std::out_of_range si el índice es inválido.
+     */
+    const tipodato &en(size_t indice) const {
+        if (indice>=tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        return datos[indice];
+    }
+    /**
+     * @brief Devuelve el valor ubicado en un índice específico.
+     *
+     * Verifica los límites del vector.
+     *
+     * @param indice Índice del valor.
+     * @return Referencia al valor.
+     * @throws std::out_of_range si el índice es inválido.
+     */
+    tipodato &at(size_t indice) {
+        if (indice>=tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        return datos[indice];
+    }
+    /**
+     * @brief Devuelve el valor ubicado en un índice específico.
+     *
+     * Verifica los límites del vector.
+     *
+     * @param indice Índice del valor.
+     * @return Referencia al valor.
+     * @throws std::out_of_range si el índice es inválido.
+     */
+    const tipodato &at(size_t indice) const {
+        if (indice>=tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        return datos[indice];
+    }
+
+    /**
+     * @brief Verifica si el vector está vacío.
+     *
+     * @return true si el tamaño es 0, false en caso contrario.
+     */
+    bool vacio() const {
+        return tam == 0;
+    }
+
+    /**
+    * @brief Devuelve el tamaño actual del vector.
+    *
+    * @return Tamaño del vector.
+    */
+    size_t obtenerTamano() const {
+        return tam;
+    }
+
+    /**
+     * @brief Devuelve la capacidad actual del vector.
+     *
+     * @return Capacidad del vector.
+     */
+    size_t obtenerCapacidad() const {
+        return capacidad;
+    }
+
+    /**
+    * @brief Cambia la capacidad del vector.
+    *
+    * Si la nueva capacidad es menor o igual que la actual, no hace nada.
+    *
+    * @param nuevaCapacidad Nueva capacidad deseada.
+    */
+    void cambiarCapacidad(size_t nuevaCapacidad = 0) {
+        if (nuevaCapacidad <= capacidad) {
+            return;
+        }
+        if (nuevaCapacidad==0) {
+            capacidad = capacidad == 0 ? 1 : capacidad * 2;
+        } else {
+            capacidad = nuevaCapacidad;
+        }
+
+        tipodato *nuevo = new tipodato[capacidad];
+
+        for (size_t i = 0; i < tam; i++) {
+            nuevo[i] = datos[i];
+        }
+
+        delete[] datos;
+        datos = nuevo;
+    }
+
+    /**
+    * @brief Elimina la primera ocurrencia de un valor.
+    *
+    * Si no se encuentra, no hace nada.
+    *
+    * @param dato Valor a eliminar.
+    */
+    void eliminarDato(tipodato dato) {
+        for (size_t i = 0; i < tam; i++) {
+            if (datos[i] == dato) {
+                eliminar(i);
+                return;
+            }
+        }
+    }
+
+    /**
+     * @brief Muestra los elementos del vector por consola.
+     */
+    void mostrar() const {
+        for (size_t i = 0; i < tam; i++) {
+            std::cout << datos[i];
+            if (i+1!=tam) {
+                std::cout<<" - ";
+            }
+        }
+        std::cout << "\n";
+    }
+
+    /**
+     * @brief Vacía el vector sin liberar memoria.
+     *
+     * Solo ajusta el tamaño a cero.
+     */
+    void vaciar() {
+        tam = 0;
+    }
+
+    /**
+     * @brief Elimina el último elemento del vector.
+     *
+     * @throws std::out_of_range si el vector está vacío.
+     */
+    void eliminarFinal() {
+        if (tam == 0) {
+            throw std::out_of_range("No hay elementos en el vector");
+        }
+        --tam;
+    }
+
+    //
+    //  Insert y erase solo para C++98 y C++03
+    //
+#if __cplusplus<201103L
+    /**
+     * @brief Inserta un valor en el índice especificado.
+     *
+     * Solo disponible en C++98/C++03.
+     *
+     * @param indice Posición donde insertar el valor.
+     * @param dato Valor a insertar.
+     * @throws std::out_of_range si el índice está fuera de rango.
+     */
+    void insertar(size_t indice, const tipodato &dato) {
+        if (indice > tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        if (tam == capacidad) {
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        }
+        for (size_t i = tam; i > indice; i--) {
+            datos[i] = datos[i - 1];
+        }
+        datos[indice] = dato;
+        ++tam;
+    }
+
+    /**
+    * @brief Elimina el elemento apuntado por un iterador.
+    *
+    * Solo disponible en C++98/C++03.
+    *
+    * @param it Iterador al elemento a eliminar.
+    * @return Iterador al siguiente elemento.
+    * @throws std::out_of_range si el iterador está fuera de rango.
+    */
+    Iterator erase(Iterator it) {
+        if (it.ptr < datos || it.ptr >= datos + tam) {
+            throw std::out_of_range("Iterador fuera de rango");
+        }
+
+        size_t index = it.ptr - datos;
+
+        if (index < tam - 1) {
+            std::memmove(&datos[index], &datos[index + 1], sizeof(tipodato) * (tam - index - 1));
+        }
+
+        --tam;
+
+        return (index == tam) ? end() : Iterator(datos + index);
+    }
+#endif
+
+    //
+    //  Insert y erase para C++11 y C++14
+    //
+
+#if __cplusplus>=201103L && __cplusplus<201703L
+    void insertar(size_t indice, const tipodato& dato) {
+        if (indice > tam) throw std::out_of_range("Indice fuera de rango");
+        if (tam == capacidad) cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+
+        if (std::is_trivially_copyable<tipodato>::value) {
+            std::memmove(&datos[indice + 1], &datos[indice], sizeof(tipodato) * (tam - indice));
+        } else {
+            for (size_t i = tam; i > indice; --i)
+                datos[i] = std::move(datos[i - 1]);
+        }
+
+        datos[indice] = dato;
+        ++tam;
+    }
+
+    Iterator erase(Iterator it) {
+        if (it.ptr < datos || it.ptr >= datos + tam)
+            throw std::out_of_range("Iterador fuera de rango");
+
+        size_t idx = it.ptr - datos;
+        if (std::is_trivially_copyable<tipodato>::value) {
+            std::memmove(&datos[idx], &datos[idx + 1], sizeof(tipodato) * (tam - idx - 1));
+        } else {
+            for (size_t i = idx; i < tam - 1; ++i)
+                datos[i] = std::move(datos[i + 1]);
+        }
+        --tam;
+        return Iterator(datos + idx);
+    }
+
+    Iterator erase(Iterator first, Iterator last) {
+        if (first == last) return first;
+        size_t start = first - begin(), end = last - begin(), count = end - start;
+
+        if (std::is_trivially_copyable<tipodato>::value) {
+            std::memmove(&datos[start], &datos[end], sizeof(tipodato) * (tam - end));
+        } else {
+            for (size_t i = 0; i < tam - end; ++i)
+                datos[start + i] = std::move(datos[end + i]);
+        }
+
+        tam -= count;
+        return Iterator(datos + start);
+    }
+#endif
+
+    //
+    //  Insert y erase C++17 en adelante
+    //
+
+#if __cplusplus>=201703L
+    template<typename U = tipodato>
+    /**
+     * @brief Elimina el elemento apuntado por un iterador (C++17+).
+     *
+     * Usa if constexpr para elegir entre memmove o std::move según el tipo.
+     *
+     * @param it Iterador al elemento a eliminar.
+     * @return Iterador al siguiente elemento.
+     * @throws std::out_of_range si el iterador está fuera de rango.
+     */
+    Iterator erase(Iterator it) {
+        if (it.ptr < datos || it.ptr >= datos + tam)
+            throw std::out_of_range("Iterador fuera de rango");
+
+        size_t idx = it.ptr - datos;
+        if (idx < tam - 1) {
+            if constexpr (std::is_trivially_copyable_v<tipodato>) {
+                std::memmove(&datos[idx], &datos[idx + 1], sizeof(tipodato) * (tam - idx - 1));
+            } else {
+                for (size_t i = idx; i < tam - 1; ++i)
+                    datos[i] = std::move(datos[i + 1]);
+            }
+        }
+        --tam;
+        return Iterator(datos + idx);
+    }
+
+    template<typename U = tipodato>
+    /**
+     * @brief Elimina un rango de elementos (C++17+).
+     *
+     * Usa if constexpr para optimizar según el tipo de dato.
+     *
+     * @param first Iterador al primer elemento a eliminar.
+     * @param last Iterador al siguiente al último.
+     * @return Iterador al siguiente elemento tras el borrado.
+     */
+    Iterator erase(Iterator first, Iterator last) {
+        if (first == last) return first;
+        size_t start = first - begin(), end = last - begin(), count = end - start;
+        if constexpr (std::is_trivially_copyable_v<tipodato>) {
+            std::memmove(&datos[start], &datos[end], sizeof(tipodato) * (tam - end));
+        } else {
+            for (size_t i = 0; i < tam - end; ++i)
+                datos[start + i] = std::move(datos[end + i]);
+        }
+        tam -= count;
+        return Iterator(datos + start);
+    }
+
+/**
+* @brief Inserta un valor en el índice especificado (C++17+).
+*
+* Usa if constexpr para optimizar el movimiento o copia según el tipo.
+*
+* @param indice Índice donde se insertará el valor.
+* @param dato Valor a insertar.
+* @throws std::out_of_range si el índice está fuera de rango.
+*/
+    void insertar(size_t indice, const tipodato& dato) {
+        if (indice > tam) throw std::out_of_range("Indice fuera de rango");
+        if (tam == capacidad) cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+
+        if constexpr (std::is_trivially_copyable_v<tipodato>) {
+            std::memmove(&datos[indice + 1], &datos[indice], sizeof(tipodato) * (tam - indice));
+        } else {
+            for (size_t i = tam; i > indice; --i)
+                datos[i] = std::move(datos[i - 1]);
+        }
+
+        datos[indice] = dato;
+        ++tam;
+    }
+#endif
+
+    /**
+    * @brief Elimina el elemento ubicado en el índice dado.
+    *
+    * @param indice Índice del elemento a eliminar.
+    * @throws std::out_of_range si el índice está fuera de rango.
+    */
+    void eliminar(size_t indice) {
+        if (indice >= tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        for (size_t i = indice; i < tam - 1; i++) {
+            datos[i] = datos[i + 1];
+        }
+        --tam;
+    }
+
+    /**
+    * @brief Verifica si el vector contiene un valor.
+    *
+    * @param dato Valor a buscar.
+    * @return true si se encuentra el valor, false en caso contrario.
+    */
+    bool contiene(const tipodato &dato) const {
+        for (size_t i = 0; i < tam; i++) {
+            if (datos[i] == dato) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+    * @brief Busca un valor en el vector.
+    *
+    * @param dato Valor a buscar.
+    * @return Índice del valor si se encuentra, -1 en caso contrario.
+    */
+    int buscar(const tipodato &dato) const {
+        for (size_t i = 0; i < tam; i++) {
+            if (datos[i] == dato) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    }
+
+    /**
+    * @brief Obtiene el valor en una posición determinada.
+    *
+    * @param indice Índice del valor a obtener.
+    * @return Copia del valor en la posición indicada.
+    * @throws std::out_of_range si el índice es inválido.
+    */
+    tipodato obtener(const int indice) const {
+        if (indice<0||indice>=tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        return datos[indice];
+    }
+
+    /**
+    * @brief Reserva una nueva capacidad para el vector.
+    *
+    * No reduce la capacidad si nuevaCapacidad <= capacidad.
+    *
+    * @param nuevaCapacidad Nueva capacidad deseada.
+    */
+    void reservar(size_t nuevaCapacidad) {
+        if (nuevaCapacidad > capacidad) {
+            cambiarCapacidad(nuevaCapacidad);
+        }
+    }
+#if __cplusplus<202002L
+    /**
+    * @brief Reduce la capacidad del vector a su tamaño actual.
+    *
+    * Libera memoria sobrante si existe.
+    */
+    void reducirCapacidad() {
+        if (capacidad > tam) {
+            tipodato *nuevo = new tipodato[tam];
+            for (size_t i = 0; i < tam; i++) {
+                nuevo[i] = datos[i];
+            }
+            delete[] datos;
+            datos = nuevo;
+            capacidad = tam;
+        }
+    }
+#endif
+#if __cplusplus >= 202002L
+    /**
+    * @brief Reduce la capacidad del vector a su tamaño actual.
+    *
+    * Libera memoria sobrante si existe.
+    */
+    void reducirCapacidad() {
+        if (capacidad > tam) {
+            tipodato* nuevo = new tipodato[tam];
+            std::ranges::copy(std::ranges::subrange(begin(), begin() + tam), nuevo);
+            delete[] datos;
+            datos = nuevo;
+            capacidad = tam;
+        }
+    }
+#endif
+
+    /**
+    * @brief Intercambia el contenido de este vector con otro.
+    * @param otro Vector con el cual se intercambiarán los datos.
+    */
+    void intercambiar(Vector &otro) {
+        std::swap(datos, otro.datos);
+        std::swap(tam, otro.tam);
+        std::swap(capacidad, otro.capacidad);
+    }
+
+    /**
+    * @brief Devuelve una referencia al primer elemento del vector.
+    * @return Referencia al elemento frontal.
+    * @throws std::out_of_range Si el vector está vacío.
+    */
+    tipodato &frente() {
+        if (tam==0) throw std::out_of_range("No hay elementos en el vector");
+        return datos[0];
+    }
+
+    /**
+    * @brief Devuelve una referencia constante al primer elemento del vector.
+    * @return Referencia constante al elemento frontal.
+    * @throws std::out_of_range Si el vector está vacío.
+    */
+    const tipodato &frente() const {
+        if (tam==0) throw std::out_of_range("No hay elementos en el vector");
+        return datos[0];
+    }
+
+    /**
+     * @brief Devuelve una referencia al último elemento del vector.
+     * @return Referencia al elemento trasero.
+     * @throws std::out_of_range Si el vector está vacío.
+     */
+    tipodato &atras() {
+        if (tam==0) throw std::out_of_range("No hay elementos en el vector");
+        return datos[tam-1];
+    }
+
+    /**
+    * @brief Devuelve una referencia constante al último elemento del vector.
+    * @return Referencia constante al elemento trasero.
+    * @throws std::out_of_range Si el vector está vacío.
+    */
+    const tipodato &atras() const {
+        if (tam==0) throw std::out_of_range("No hay elementos en el vector");
+        return datos[tam-1];
+    }
+
+    /**
+    * @brief Invierte el orden de los elementos en el vector.
+    */
+    void invertir() {
+        for (size_t i = 0; i < tam/2; i++) {
+            tipodato aux = datos[i];
+            datos[i] = datos[tam-i-1];
+            datos[tam-i-1] = aux;
+        }
+    }
+
+    /**
+    * @brief Ordena el vector usando el algoritmo de burbuja (O(n^2)).
+    */
+    void ordenarBurbuja() {
+        for (size_t i = 0; i < tam; i++) {
+            for (size_t j = i+1; j < tam; j++) {
+                if (datos[i] > datos[j]) {
+                    tipodato aux = datos[i];
+                    datos[i] = datos[j];
+                    datos[j] = aux;
+                }
+            }
+        }
+    }
+
+    /**
+    * @brief Ordena el vector usando el algoritmo IntroSort (a través de std::sort).
+    * Complejidad temporal: O(n log n)
+    */
+    void ordenar() {
+        std::sort(begin(),end());
+    }
+
+    /**
+    * @brief Crea un subvector a partir de un rango de índices.
+    * @param desde Índice de inicio (inclusive).
+    * @param hasta Índice de fin (exclusive).
+    * @return Subvector con los elementos seleccionados.
+    * @throws std::out_of_range Si los índices no son válidos.
+    */
+    Vector subvector(size_t desde, size_t hasta) const {
+        if (desde > hasta || hasta > tam) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+        Vector nuevo;
+        for (size_t i = desde; i < hasta; ++i) {
+            nuevo.agregarFinal(datos[i]);
+        }
+        return nuevo;
+    }
+
+    /**
+    * @brief Devuelve la capacidad restante disponible en el vector.
+    * @return Número de elementos que se pueden insertar antes de redimensionar.
+    */
+    size_t capacidadLibre() const {
+        return capacidad - tam;
+    }
+
+    /**
+    * @brief Reemplaza todas las apariciones de un dato por otro.
+    * @param dato Valor a reemplazar.
+    * @param nuevo Nuevo valor.
+    */
+    void reemplazar(const tipodato &dato, const tipodato &nuevo) {
+        for (size_t i = 0; i < tam; i++) {
+            if (datos[i] == dato) {
+                datos[i] = nuevo;
+            }
+        }
+    }
+
+    /**
+    * @brief Elimina todos los elementos duplicados del vector.
+    */
+    void eliminarDuplicados() {
+        ordenar();
+        erase(std::unique(begin(), end()), end());
+    }
+
+    /**
+    * @brief Cuenta cuántas veces aparece un dato en el vector.
+    * @param dato Valor a contar.
+    * @return Número de apariciones del valor.
+    */
+    size_t contar(const tipodato &dato) const {
+        size_t contador = 0;
+        for (size_t i = 0; i < tam; i++) {
+            if (datos[i] == dato) {
+                ++contador;
+            }
+        }
+        return contador;
+    }
+
+    /**
+    * @brief Reduce la capacidad si el tamaño es menor a la mitad de la capacidad actual.
+    */
+    void ajustarCapacidad() {
+        if (tam<capacidad/2) {
+            reducirCapacidad();
+        }
+    }
+
+    /**
+    * @brief Intercambia los elementos en los índices dados.
+    * @param i Índice del primer elemento.
+    * @param j Índice del segundo elemento.
+    * @throws std::out_of_range Si alguno de los índices es inválido.
+    */
+    void intercambiarIndices(size_t i, size_t j) {
+        if (i>=tam||j>=tam) throw std::out_of_range("Indice fuera de rango");
+        tipodato aux = datos[i];
+        datos[i] = datos[j];
+        datos[j] = aux;
+    }
+
+    /**
+    * @brief Inserta otro vector a partir de un índice específico.
+    * @param indice Índice donde se insertarán los datos.
+    * @param v Vector a insertar.
+    * @throws std::out_of_range Si el índice es inválido.
+    */
+    void insertarVector(size_t indice, const Vector &v) {
+        if (indice > tam) throw std::out_of_range("Indice fuera de rango");
+        Vector copia = v;
+        while (tam + copia.tam > capacidad) {
+            cambiarCapacidad(capacidad == 0 ? 1 : capacidad * 2);
+        }
+        for (size_t i = tam; i > indice; --i) {
+            datos[i + copia.tam - 1] = datos[i - 1];
+        }
+        for (size_t i = 0; i < copia.tam; ++i) {
+            datos[indice + i] = copia.datos[i];
+        }
+        tam += copia.tam;
+    }
+
+    /** @name Métodos compatibles con std::vector
+    *Métodos alternativos con nombres en inglés para facilitar la interoperabilidad.
+    */
+    ///@{
+
+    /**
+    * @brief Redimensiona el vector, opcionalmente rellenando con un valor.
+    * @param nuevoTam Nuevo tamaño del vector.
+    * @param dato Valor a usar para inicializar los nuevos elementos.
+    */
+    void resize(size_t nuevoTam, const tipodato &dato = tipodato()) {
+        redimensionar(nuevoTam, dato);
+    }
+    /**
+    * @brief Agrega un valor al final del vector.
+    * @param dato Valor a agregar.
+    */
+    void push_back(const tipodato &dato) {
+        agregarFinal(dato);
+    }
+    /**
+    * @brief Elimina el último elemento del vector.
+    */
+    void pop_back() {
+        eliminarFinal();
+    }
+    /**
+    * @brief Reserva una nueva capacidad para el vector.
+    * @param nuevaCapacidad Nueva capacidad mínima deseada.
+    */
+    void reserve(size_t nuevaCapacidad) {
+        reservar(nuevaCapacidad);
+    }
+    /**
+    * @brief Inserta un valor en una posición utilizando iteradores.
+    * @param pos Posición destino.
+    * @param val Valor a insertar.
+    * @return Iterador apuntando al nuevo elemento insertado.
+    */
+    Iterator insert(Iterator pos, const tipodato& val) {
+        size_t idx = pos - begin();
+        insert(idx, val);
+        return begin() + idx;
+    }
+    /**
+    * @brief Inserta un valor en una posición utilizando un índice.
+    * @param indice Índice donde insertar.
+    * @param dato Valor a insertar.
+    */
+    void insert(size_t indice, const tipodato &dato) {
+        insertar(indice,dato);
+    }
+    /**
+    * @brief Elimina el elemento en el índice proporcionado.
+    * @param indice Índice del elemento a eliminar.
+    */
+    void erase(size_t indice) {
+        eliminar(indice);
+    }
+    /**
+    * @brief Intercambia el contenido con otro vector.
+    * @param otro Vector con el cual se intercambiarán los datos.
+    */
+    void swap(Vector &otro) noexcept {
+        intercambiar(otro);
+    }
+    /**
+    * @brief Devuelve una referencia al primer elemento del vector.
+    * @return Referencia al primer elemento.
+    */
+    tipodato &front() {
+        return frente();
+    }
+    /**
+    * @brief Devuelve una referencia al último elemento del vector.
+    * @return Referencia al último elemento.
+    */
+    tipodato &back() {
+        return atras();
+    }
+    /**
+    * @brief Reduce la capacidad al tamaño actual.
+    */
+    void shrink_to_fit() {
+        reducirCapacidad();
+    }
+    /**
+    * @brief Devuelve el número de elementos en el vector.
+    * @return Tamaño del vector.
+    */
+    size_t size() const {
+        return tam;
+    }
+    /**
+    * @brief Devuelve la capacidad actual del vector.
+    * @return Capacidad del vector.
+    */
+    size_t capacity() const {
+        return capacidad;
+    }
+    /**
+    * @brief Verifica si el vector está vacío.
+    * @return true si el vector está vacío, false en caso contrario.
+    */
+    bool empty() const {
+        return tam == 0;
+    }
+    /**
+    * @brief Devuelve el tamaño máximo teórico que puede tener el vector.
+    * @return Tamaño máximo permitido por el sistema.
+    */
+    size_t static max_size() {
+        return std::numeric_limits<size_t>::max();
+    }
+    /**
+    * @brief Acceso directo al bloque de memoria del vector.
+    * @return Puntero a los datos del vector.
+    */
+    tipodato *data() noexcept {
+        return datos;
+    }
+    /**
+    * @brief Acceso directo constante al bloque de memoria del vector.
+    * @return Puntero constante a los datos del vector.
+    */
+    const tipodato *data() const noexcept {
+        return datos;
+    }
+    ///@}
+    //
+    // [DEBUG]
+    //
+
+    // tipodato* raw() const {
+    //     return datos;
+    // }
+
+};
+
+#endif //VECTOR_H
