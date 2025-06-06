@@ -1,5 +1,5 @@
 /**
- * @file Vector.h
+ * @file cppvector.h
  * @brief Implementacion de un vector dinamico similar a std::vector
  *
  * Esta clase implementa un contenedor dinamico que almacena elementos tipo 'tipodato'
@@ -17,8 +17,8 @@
  *
  **/
 
-#ifndef VECTOR_H
-#define VECTOR_H
+#ifndef CPPVECTOR_H
+#define CPPVECTOR_H
 
 #include <iostream>
 #include <algorithm>
@@ -2756,4 +2756,4 @@ namespace std::ranges {
     inline constexpr bool enable_borrowed_range<::Vector<T, Alloc>> = true;
 }
 #endif
-#endif //VECTOR_H
+#endif //CPPVECTOR_H
