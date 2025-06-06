@@ -2616,38 +2616,38 @@ public:
     ///@{
 
     /**
-    * @brief Redimensiona el vector, opcionalmente rellenando con un valor.
-    * @param nuevoTam Nuevo tamaño del vector.
-    * @param dato Valor a usar para inicializar los nuevos elementos.
+    * @brief Resizes the vector, optionally filling with a value.
+    * @param newSize New size of the vector.
+    * @param value Value used to initialize the new elements (if any).
     */
-    void resize(size_t nuevoTam, const tipodato &dato = tipodato()) {
-        redimensionar(nuevoTam, dato);
+    void resize(size_t newSize, const tipodato &value = tipodato()) {
+        redimensionar(newSize, value);
     }
     /**
-    * @brief Agrega un valor al final del vector.
-    * @param dato Valor a agregar.
+    * @brief Adds a value at the end of the vector.
+    * @param value Value to be added.
     */
-    void push_back(const tipodato &dato) {
-        agregarFinal(dato);
+    void push_back(const tipodato &value) {
+        agregarFinal(value);
     }
     /**
-    * @brief Elimina el último elemento del vector.
+    * @brief Removes the last element of the vector.
     */
     void pop_back() {
         eliminarFinal();
     }
     /**
-    * @brief Reserva una nueva capacidad para el vector.
-    * @param nuevaCapacidad Nueva capacidad mínima deseada.
+    * @brief Reserves a new capacity for the vector.
+    * @param newCapacity Minimum desired capacity.
     */
-    void reserve(size_t nuevaCapacidad) {
-        reservar(nuevaCapacidad);
+    void reserve(size_t newCapacity) {
+        reservar(newCapacity);
     }
     /**
-    * @brief Inserta un valor en una posición utilizando iteradores.
-    * @param pos Posición destino.
-    * @param val Valor a insertar.
-    * @return Iterador apuntando al nuevo elemento insertado.
+    * @brief Inserts a value at a position using iterators.
+    * @param pos Destination position.
+    * @param val Value to insert.
+    * @return Iterator pointing to the newly inserted element.
     */
     Iterator insert(Iterator pos, const tipodato& val) {
         size_t idx = pos - begin();
@@ -2655,89 +2655,147 @@ public:
         return begin() + idx;
     }
     /**
-    * @brief Inserta un valor en una posición utilizando un índice.
-    * @param indice Índice donde insertar.
-    * @param dato Valor a insertar.
+    * @brief Inserts a value at the specified index.
+    * @param index Index where the value will be inserted.
+    * @param value Value to insert.
     */
-    void insert(size_t indice, const tipodato &dato) {
-        insertar(indice,dato);
+    void insert(size_t index, const tipodato &value) {
+        insertar(index,value);
     }
     /**
-    * @brief Elimina el elemento en el índice proporcionado.
-    * @param indice Índice del elemento a eliminar.
+    * @brief Removes the element at the specified index.
+    * @param index Index of the element to be removed.
     */
-    void erase(size_t indice) {
-        eliminar(indice);
+    void erase(size_t index) {
+        eliminar(index);
     }
     /**
-    * @brief Intercambia el contenido con otro vector.
-    * @param otro Vector con el cual se intercambiarán los datos.
+    * @brief Swaps the contents with another vector.
+    * @param other Vector with which to swap contents.
     */
-    void swap(Vector &otro) noexcept {
-        intercambiar(otro);
+    void swap(Vector &other) noexcept {
+        intercambiar(other);
     }
     /**
-    * @brief Devuelve una referencia al primer elemento del vector.
-    * @return Referencia al primer elemento.
+    * @brief Returns a reference to the first element.
+    * @return Reference to the first element.
     */
     tipodato &front() {
         return frente();
     }
     /**
-    * @brief Devuelve una referencia al último elemento del vector.
-    * @return Referencia al último elemento.
+    * @brief Returns a reference to the last element.
+    * @return Reference to the last element.
     */
     tipodato &back() {
         return atras();
     }
     /**
-    * @brief Reduce la capacidad al tamaño actual.
+    * @brief Reduces the capacity to match the current size.
     */
     void shrink_to_fit() {
         reducirCapacidad();
     }
     /**
-    * @brief Devuelve el número de elementos en el vector.
-    * @return Tamaño del vector.
+    * @brief Returns the number of elements currently stored in the vector.
+    * @return Size of the vector.
     */
     size_t size() const {
         return tam;
     }
     /**
-    * @brief Devuelve la capacidad actual del vector.
-    * @return Capacidad del vector.
+    * @brief Returns the current capacity of the vector.
+    * @return Capacity of the vector.
     */
     size_t capacity() const {
         return capacidad;
     }
     /**
-    * @brief Verifica si el vector está vacío.
-    * @return true si el vector está vacío, false en caso contrario.
+    * @brief Checks whether the vector is empty.
+    * @return true if the vector is empty, false otherwise.
     */
     bool empty() const {
         return tam == 0;
     }
     /**
-    * @brief Devuelve el tamaño máximo teórico que puede tener el vector.
-    * @return Tamaño máximo permitido por el sistema.
+    * @brief Returns the maximum number of elements that the vector can theoretically hold.
+    * @return Maximum size supported by the system.
     */
     size_t static max_size() {
         return std::numeric_limits<size_t>::max();
     }
     /**
-    * @brief Acceso directo al bloque de memoria del vector.
-    * @return Puntero a los datos del vector.
+    * @brief Direct access to the internal memory block.
+    * @return Pointer to the data.
     */
     tipodato *data() noexcept {
         return datos;
     }
     /**
-    * @brief Acceso directo constante al bloque de memoria del vector.
-    * @return Puntero constante a los datos del vector.
+    * @brief Constant direct access to the internal memory block.
+    * @return Constant pointer to the data.
     */
     const tipodato *data() const noexcept {
         return datos;
     }
+    /**
+    * @brief Prints all elements in the vector to the console.
+    */
+    void display() const {
+        mostrar();
+    }
+    /**
+    * @brief Removes all duplicate values in the vector.
+    */
+    void removeDuplicates() {
+        eliminarDuplicados();
+    }
+    /**
+    * @brief Reverses the order of the elements in the vector.
+    */
+    void reverse() {
+        invertir();
+    }
+    /**
+    * @brief Swaps the values at two specified indices.
+    * @param indexA Index of the first element.
+    * @param indexB Index of the second element.
+    * @return 1 if swapped successfully, 0 or error code otherwise.
+    */
+    int swapIndices(size_t indexA, size_t indexB) {
+        return intercambiarIndices(indexA, indexB);
+    }
+    /**
+    * @brief Replaces all occurrences of a value with another.
+    * @param oldValue Value to be replaced.
+    * @param newValue Replacement value.
+    * @return Number of elements replaced.
+    */
+    tipodato replaceAll(tipodato oldValue, tipodato newValue) {
+        return reemplazar(oldValue, newValue);
+    }
+    /**
+    * @brief Creates a subvector between two indices (inclusive from, exclusive to).
+    * @param from Starting index (inclusive).
+    * @param to Ending index (exclusive).
+    * @return A new Vector containing the selected range.
+    */
+    Vector slice(const size_t from, const size_t to) const {
+        return subvector(from, to);
+    }
+    /**
+    * @brief Sorts the elements in ascending order using std::sort.
+    */
+    void sort() {
+        ordenar();
+    }
+    /**
+    * @brief Sorts the elements using bubble sort (not recommended for large vectors).
+    */
+    void bubbleSort() {
+        ordenarBurbuja();
+    }
+
     ///@}
 
     //
