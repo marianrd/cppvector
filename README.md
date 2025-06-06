@@ -1,10 +1,10 @@
 > [!NOTE]
-> This is an educational/personal project, don't expect it to be as optimized or functional as std::vector
+> This is an educational/personal project — don't expect it to be as optimized or functional as std::vector
 
 # cppvector
 
 A custom dynamic vector implementation in C++, with full support for STL algorithms, iterators and bilingual method names in **English** and **Spanish**.
-The library includes full support for all C++ versions (note that some features may not be available for older version).
+The library supports all C++ versions (note that some features may not be available in older versions).
 
 ## Features
 
@@ -20,7 +20,7 @@ The library includes full support for all C++ versions (note that some features 
 
 ### Element access
 
-| std::sort   | cppvector (English) | cppvector (Spanish) |
+| STL Method  | cppvector (English) | cppvector (Spanish) |
 |-------------|---------------------|---------------------|
 | at()        | at()                | en()                |
 | back()      | back()              | atras()             |
@@ -28,7 +28,7 @@ The library includes full support for all C++ versions (note that some features 
 | front()     | front()             | frente()            |
 
 ### Iterators
-| std::sort   | cppvector (English) | cppvector (Spanish) |
+| STL Method  | cppvector (English) | cppvector (Spanish) |
 |-------------|---------------------|---------------------|
 | begin()     | begin()             | begin()             |
 | cbegin()    | cbegin()            | cbegin()            |
@@ -39,7 +39,7 @@ The library includes full support for all C++ versions (note that some features 
 | end()       | end()               | end()               |
 
 ### Capacity
-| std::sort   | cppvector (English) | cppvector (Spanish) |
+| STL Method  | cppvector (English) | cppvector (Spanish) |
 |-------------|---------------------|---------------------|
 | capacity()  | capacity()          | obtenerCapacidad()  |
 | empty()     | empty()             | vacio()             |
@@ -49,7 +49,7 @@ The library includes full support for all C++ versions (note that some features 
 | size()      | size()              | obtenerTamano()     |
 
 ### Modifiers
-| std::sort   | cppvector (English) | cppvector (Spanish) |
+| STL Method  | cppvector (English) | cppvector (Spanish) |
 |-------------|---------------------|---------------------|
 | clear()     | clear()             | limpiar()           |
 | emplace()   | emplace()           | emplace()           |
@@ -73,16 +73,16 @@ The library includes full support for all C++ versions (note that some features 
 | reemplazar()        | reemplazar()        |
 | subvector()         | subvector()         |
 
-#### Custom methods explaination
+#### Custom methods explanation
 
-- ordenar() uses std::sort to sort the vector in ascending order
-- ordenarBurbuja() uses bubble sort to sort the vector in ascending order (just for fun, please don't use it in large datasets!)
-- mostrar() prints all elements stored in the vector to console
-- eliminarDuplicados() deletes all duplicate values in the vector
-- invertir() inverts the order of elements in the vector
-- intercambiarIndices() swaps position numbers of two provided elements
-- reemplazar() replaces all apparitions of an element in the vector
-- subvector() creates a subvector in a specified range of elements
+- ordenar() uses std::sort to sort the vector in ascending order.
+- ordenarBurbuja() uses bubble sort to sort the vector in ascending order (just for fun — avoid for large datasets!).
+- mostrar() prints all elements stored in the vector to console.
+- eliminarDuplicados() deletes all duplicate values in the vector.
+- invertir() inverts the order of elements in the vector.
+- intercambiarIndices() swaps indices of two provided elements.
+- reemplazar() replaces all occurrences of an element in the vector.
+- subvector() creates a subvector in a specified range of elements.
 
 ### TODO
 - Add allocator support
@@ -90,5 +90,17 @@ The library includes full support for all C++ versions (note that some features 
 - Add insert_range() support (C++23+)
 - Translate more methods to Spanish
 
+### Usage example
+```c++
+#include "cppvector.h"
 
+int main() {
+    Vector<int> v;
+    v.push_back(10); // You can also use v.agregarFinal(10);
+    v.push_back(20); 
+    v.mostrar(); // Should print: 10 20
+
+    return 0;
+}
+```
 
