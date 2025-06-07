@@ -1879,7 +1879,6 @@ public:
         }
 
         for (size_t i = tamano_; i > indice; --i) {
-            // Mover el elemento hacia la derecha usando move constructor o asignación
             alloc_construct(alloc, &datos_[i], std::move(datos_[i - 1]));
             alloc_destroy(alloc,&datos_[i - 1]);
         }
@@ -2073,7 +2072,7 @@ public:
         }
 
         if (self_insertion) {
-            std::vector<tipodato> temp_storage;
+            Vector<tipodato> temp_storage;
             for (auto&& val : range) {
                 temp_storage.push_back(val);
             }
@@ -2873,7 +2872,7 @@ public:
     * @return Número de apariciones del valor.
     */
     size_t contar(const tipodato &dato) const {
-        size_t contador = 0;                                //OMG TAYLOR SWIFT REFERENCE!!!!!!! 1989!!!!
+        size_t contador = 0;
         for (size_t i = 0; i < tamano_; i++) {
             if (datos_[i] == dato) {
                 ++contador;
@@ -2946,7 +2945,6 @@ public:
         }
         for (size_t i = tamano_; i > indice; --i) {
             alloc_destroy(alloc, &datos_[i + copia.tamano_ - 1]);
-            // Use copy instead of move for C++98
             alloc_construct(alloc, &datos_[i + copia.tamano_ - 1], datos_[i - 1]);
             alloc_destroy(alloc, &datos_[i - 1]);
         }
