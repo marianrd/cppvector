@@ -171,6 +171,42 @@ bool areEqual(const T& a, const T& b) {
 */
 template<typename tipodato, typename Allocator = std::allocator<tipodato>>
 struct Vector {
+
+#if __cplusplus >= 201703L
+    template<typename Alloc, typename Ptr, typename... Args>
+    void alloc_construct(Alloc& alloc, Ptr ptr, Args&&... args) {
+        std::allocator_traits<Alloc>::construct(alloc, ptr, std::forward<Args>(args)...);
+    }
+
+    template<typename Alloc, typename Ptr>
+    void alloc_destroy(Alloc& alloc, Ptr ptr) {
+        std::allocator_traits<Alloc>::destroy(alloc, ptr);
+    }
+
+#elif __cplusplus >= 201103L
+    template<typename Alloc, typename Ptr, typename... Args>
+    void alloc_construct(Alloc& alloc, Ptr ptr, Args&&... args) {
+        alloc.construct(ptr, std::forward<Args>(args)...);
+    }
+
+    template<typename Alloc, typename Ptr>
+    void alloc_destroy(Alloc& alloc, Ptr ptr) {
+        alloc.destroy(ptr);
+    }
+
+#else
+    template<typename Alloc, typename Ptr, typename Arg>
+    void alloc_construct(Alloc& alloc, Ptr ptr, const Arg& arg) {
+        alloc.construct(ptr, arg);
+    }
+
+    template<typename Alloc, typename Ptr>
+    void alloc_destroy(Alloc& alloc, Ptr ptr) {
+        alloc.destroy(ptr);
+    }
+#endif
+
+
 private:
     tipodato *datos_;    /// < Puntero al arreglo dinamico
     size_t tamano_;         /// < Cantidad actual de elementos
@@ -208,10 +244,10 @@ public:
      **/
     Vector(std::initializer_list<tipodato> lista) {
         tamano_ = capacidad_ = lista.size();
-        datos_ = new tipodato[capacidad_];
+        datos_ = alloc.allocate(capacidad_);
         size_t i = 0;
         for (auto &dato : lista) {
-            datos_[i++] = dato;
+            alloc_construct(alloc,&datos_[i++], dato);
         }
     }
 #endif
@@ -222,11 +258,11 @@ public:
      * @param valor
      */
     explicit Vector(size_t Capacidad, const tipodato &valor = tipodato()) {
-        datos_ = new tipodato[Capacidad];
+        datos_ = alloc.allocate(Capacidad);
         tamano_ = Capacidad;
         capacidad_ = Capacidad;
         for (size_t i = 0; i < Capacidad; i++) {
-            datos_[i] = valor;
+            alloc_construct(alloc, &datos_[i], valor);
         }
     }
 
@@ -235,7 +271,12 @@ public:
      */
     ~Vector() {
         assert(tamano_ <= capacidad_);
-        delete[] datos_;
+        for (size_t i = 0; i < tamano_; ++i) {
+            alloc_destroy(alloc, &datos_[i]);
+        }
+        if (datos_) {
+            alloc.deallocate(datos_, capacidad_);
+        }
     }
 
 
@@ -264,7 +305,12 @@ public:
      */
     Vector &operator=(Vector &&otro) noexcept {
         if (this!=&otro) {
-            delete[] datos_;
+            for (size_t i = 0; i < tamano_; ++i) {
+                alloc_destroy(alloc,&datos_[i]);
+            }
+            if (datos_) {
+                alloc.deallocate(datos_, capacidad_);
+            }
             datos_ = otro.datos_;
             tamano_ = otro.tamano_;
             capacidad_ = otro.capacidad_;
@@ -297,9 +343,9 @@ public:
     Vector(const Vector &otro) {
         tamano_ = otro.tamano_;
         capacidad_ = otro.capacidad_;
-        datos_ = new tipodato[capacidad_];
+        datos_ = alloc.allocate(capacidad_);
         for (size_t i = 0; i < tamano_; i++) {
-            datos_[i] = otro.datos_[i];
+            alloc_construct(alloc, &datos_[i], otro.datos_[i]);
         }
     }
 #endif
@@ -309,16 +355,15 @@ public:
      * @param otro
      */
     Vector(const Vector& otro) {
-        datos_ = new tipodato[otro.capacidad_];
+        datos_ = alloc.allocate(otro.capacidad_);
         tamano_ = otro.tamano_;
         capacidad_ = otro.capacidad_;
         for (size_t i = 0; i < tamano_; ++i) {
-            datos_[i] = otro.datos_[i];
+            alloc_construct(alloc, &datos_[i], otro.datos_[i]);
         }
     }
-
-
 #endif
+
     //
     //  INICIO SECCION ITERADORES
     //  (usados para range based loops, algoritmos de ordenamiento y otras cosas)
@@ -1773,7 +1818,7 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const Vector &v) {
         os << "[";
         for (size_t i = 0; i < v.tamano_; i++) {
-            if (i>0) os << ", ";
+            if (i > 0) os << ", ";
             os << v.datos_[i];
         }
         os << "]";
@@ -1789,14 +1834,13 @@ public:
      * @return true si son iguales, false en caso contrario.
      */
     bool operator==(const Vector &otro) const {
-        if (tamano_!=otro.tamano_) return false;
+        if (tamano_ != otro.tamano_) return false;
         for (size_t i = 0; i < tamano_; i++) {
             if (!areEqual(datos_[i], otro.datos_[i])) {
                 return false;
             }
         }
         return true;
-
     }
 
     /**
@@ -1835,10 +1879,12 @@ public:
         }
 
         for (size_t i = tamano_; i > indice; --i) {
-            datos_[i] = std::move(datos_[i - 1]);
+            // Mover el elemento hacia la derecha usando move constructor o asignación
+            alloc_construct(alloc, &datos_[i], std::move(datos_[i - 1]));
+            alloc_destroy(alloc,&datos_[i - 1]);
         }
 
-        new(&datos_[indice]) tipodato(std::forward<Args>(args)...);
+        alloc_construct(alloc, &datos_[indice], std::forward<Args>(args)...);
 
         ++tamano_;
     }
@@ -1856,9 +1902,11 @@ public:
         if (tamano_ == capacidad_) {
             cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
         }
-        new(&datos_[tamano_]) tipodato(std::forward<Args>(args)...);
+
+        alloc_construct(alloc, &datos_[tamano_], std::forward<Args>(args)...);
         ++tamano_;
     }
+
 #endif
 
     /**
@@ -1871,6 +1919,10 @@ public:
      */
     void redimensionar(size_t nuevoTam, const tipodato &dato = tipodato()) {
         if (nuevoTam < tamano_) {
+            // destruir elementos sobrantes
+            for (size_t i = nuevoTam; i < tamano_; ++i) {
+                alloc_destroy(alloc,&datos_[i]);
+            }
             tamano_ = nuevoTam;
             if (tamano_ < capacidad_ / 2) {
                 reducirCapacidad();
@@ -1880,10 +1932,10 @@ public:
                 cambiarCapacidad(nuevoTam);
             }
             for (size_t i = tamano_; i < nuevoTam; i++) {
-                datos_[i] = dato;
+                alloc_construct(alloc, &datos_[i], dato);
             }
+            tamano_ = nuevoTam;
         }
-        tamano_ = nuevoTam;
     }
 
     /**
@@ -1892,12 +1944,17 @@ public:
      * Reinicia tamaño y capacidad a cero.
      */
     void clear() {
-        delete[] datos_;
-        datos_ = nullptr;
+        for (size_t i = 0; i < tamano_; ++i) {
+            alloc_destroy(alloc,&datos_[i]);
+        }
+        if (datos_) {
+            alloc.deallocate(datos_, capacidad_);
+            datos_ = nullptr;
+        }
         tamano_ = 0;
         capacidad_ = 0;
     }
-#if __cplusplus<201103L
+#if __cplusplus < 201103L
     /**
      * @brief Agrega un valor al final del vector.
      *
@@ -1910,7 +1967,7 @@ public:
         datos_[tamano_++] = dato;
     }
 #endif
-#if __cplusplus >= 201103L
+#if __cplusplus < 202003L
     /**
      * @brief Agrega un valor al final del vector.
      *
@@ -1919,7 +1976,8 @@ public:
     void agregarFinal(tipodato&& dato) {
         if (tamano_ == capacidad_)
             cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
-        datos_[tamano_++] = std::move(dato);
+        alloc_construct(alloc,&datos_[tamano_], std::move(dato));
+        ++tamano_;
     }
 
     /**
@@ -1930,7 +1988,159 @@ public:
     void agregarFinal(const tipodato& dato) {
         if (tamano_ == capacidad_)
             cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
-        datos_[tamano_++] = dato;
+        alloc_construct(alloc,&datos_[tamano_], dato);
+        ++tamano_;
+    }
+#endif
+#if __cplusplus >= 202002L
+    /**
+        * @brief Asegura que el contenedor tenga suficiente capacidad para al menos new_size elementos.
+        *
+        * Si la capacidad actual es menor que new_size, este método aumenta la capacidad
+        * al máximo entre new_size o el doble de la capacidad actual, realocando y moviendo
+        * los elementos existentes al nuevo espacio.
+        *
+        * @param new_size La capacidad mínima requerida.
+        */
+    void aumentarCapacidad(const size_t new_size) {
+        if (new_size <= capacidad_) return;
+        const size_t new_cap = std::max(new_size, capacidad_ * 2);
+        tipodato* new_data = alloc.allocate(new_cap);
+
+        for (size_t i = 0; i < tamano_; ++i) {
+            alloc_construct(alloc, &new_data[i], std::move(datos_[i]));
+            alloc_destroy(alloc,&datos_[i]);
+        }
+
+        if (datos_) {
+            alloc.deallocate(datos_, capacidad_);
+        }
+
+        datos_ = new_data;
+        capacidad_ = new_cap;
+    }
+
+    /**
+    * @brief Añade al final del contenedor todos los elementos de un rango dado.
+    *
+    * Si el rango tiene un tamaño conocido, el contenedor reserva espacio suficiente
+    * para todos los elementos nuevos. Luego, inserta cada elemento al final usando emplace_back.
+    *
+    * @tparam R Tipo que satisface std::ranges::input_range.
+    * @param range El rango de elementos a añadir.
+    */
+    template <std::ranges::input_range R>
+    void agregarRango(R&& range) {
+        if constexpr (std::ranges::sized_range<R>) {
+            auto count = std::ranges::distance(range);
+            aumentarCapacidad(tamano_ + count);
+        }
+
+        for (auto&& val : range) {
+            emplace_back(std::forward<decltype(val)>(val));
+        }
+    }
+
+    /**
+    * @brief Inserta elementos de un rango dado en una posición específica del contenedor.
+    *
+    * Lanza std::out_of_range si pos es mayor que el tamaño actual.
+    * Si el rango tiene un tamaño conocido, el contenedor reserva espacio suficiente
+    * para insertar todos los elementos. Los elementos existentes desde pos en adelante
+    * se mueven para hacer espacio, y los nuevos elementos se copian o mueven en ese hueco.
+    *
+    * @tparam R Tipo que satisface std::ranges::input_range.
+    * @param pos La posición en la que insertar los nuevos elementos.
+    * @param range El rango de elementos a insertar.
+    * @return Iterador apuntando al primer elemento insertado.
+    * @throws std::out_of_range si pos > tamaño actual.
+    */
+    template <std::ranges::input_range R>
+    Iterator insertarRango(size_t pos, R&& range) {
+        static_assert(std::convertible_to<std::ranges::range_reference_t<R>, tipodato>,
+                      "El tipo de elemento debe ser convertible a tipodato");
+
+        if (pos > tamano_) {
+            throw std::out_of_range("insert_range: posicion fuera de limites");
+        }
+
+        bool self_insertion = false;
+        if constexpr (std::is_lvalue_reference_v<R> && std::is_same_v<std::remove_cvref_t<R>, Vector>) {
+            const Vector* ptr = &range;
+            if (ptr == this) {
+                self_insertion = true;
+            }
+        }
+
+        if (self_insertion) {
+            std::vector<tipodato> temp_storage;
+            for (auto&& val : range) {
+                temp_storage.push_back(val);
+            }
+            size_t insert_count = temp_storage.size();
+
+            aumentarCapacidad(tamano_ + insert_count);
+
+            for (size_t i = tamano_; i-- > pos;) {
+                alloc_construct(alloc, &datos_[i + insert_count], std::move(datos_[i]));
+                alloc_destroy(alloc,&datos_[i]);
+            }
+
+            size_t idx = pos;
+            for (auto&& val : temp_storage) {
+                alloc_construct(alloc, &datos_[idx++], val);
+            }
+
+            tamano_ += insert_count;
+
+        } else {
+            size_t insert_count = 0;
+            if constexpr (std::ranges::sized_range<R>) {
+                insert_count = std::ranges::distance(range);
+            } else {
+                for (auto it = std::ranges::begin(range); it != std::ranges::end(range); ++it) ++insert_count;
+            }
+
+            aumentarCapacidad(tamano_ + insert_count);
+
+            for (size_t i = tamano_; i-- > pos;) {
+                alloc_construct(alloc, &datos_[i + insert_count], std::move(datos_[i]));
+                alloc_destroy(alloc,&datos_[i]);
+            }
+
+            size_t idx = pos;
+            for (auto&& val : range) {
+                alloc_construct(alloc, &datos_[idx++], std::forward<decltype(val)>(val));
+            }
+
+            tamano_ += insert_count;
+        }
+
+        return Iterator(datos_ + pos);
+    }
+
+    /**
+     * @brief Agrega un valor al final del vector.
+     *
+     * @param dato Valor a agregar.
+     */
+    void agregarFinal(tipodato&& dato) {
+        if (tamano_ == capacidad_)
+            cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
+        alloc_construct(alloc,&datos_[tamano_], std::move(dato));
+        ++tamano_;
+    }
+
+    /**
+    * @brief Agrega un valor al final del vector.
+    *
+    * @param dato Valor a agregar.
+    */
+    void agregarFinal(const tipodato& dato) {
+        if (tamano_ == capacidad_)
+            cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
+        alloc_construct(alloc,&datos_[tamano_], dato);
+        ++tamano_;
     }
 #endif
 
@@ -1943,7 +2153,7 @@ public:
      */
     tipodato &ultimo() {
         if (tamano_==0) throw std::out_of_range("No hay elementos en el vector");
-        return datos_[tamano_-1];
+        return datos_[tamano_ - 1];
     }
 
     /**
@@ -2055,6 +2265,7 @@ public:
         return capacidad_;
     }
 
+#if __cplusplus>=201103L
     /**
     * @brief Cambia la capacidad del vector.
     *
@@ -2066,27 +2277,70 @@ public:
         if (nuevaCapacidad <= capacidad_) {
             return;
         }
-        if (nuevaCapacidad==0) {
-            capacidad_ = capacidad_ == 0 ? 1 : capacidad_ * 2;
-        } else {
-            capacidad_ = nuevaCapacidad;
+        if (nuevaCapacidad == 0) {
+            nuevaCapacidad = capacidad_ == 0 ? 1 : capacidad_ * 2;
         }
 
-        if (tamano_ > nuevaCapacidad) {
-            tamano_ = nuevaCapacidad;
+        tipodato* nuevo = alloc.allocate(nuevaCapacidad);
+        size_t i = 0;
+
+        try {
+            for (; i < tamano_; ++i) {
+                alloc_construct(alloc, &nuevo[i], std::move(datos_[i]));
+            }
+        } catch (...) {
+            for (size_t j = 0; j < i; ++j) {
+                alloc_destroy(alloc,&nuevo[j]);
+            }
+            alloc.deallocate(nuevo, nuevaCapacidad);
+            throw;
         }
-        capacidad_ = nuevaCapacidad;
 
-        auto *nuevo = new tipodato[capacidad_];
-
-        for (size_t i = 0; i < tamano_; i++) {
-            nuevo[i] = datos_[i];
+        for (size_t j = 0; j < tamano_; ++j) {
+            alloc_destroy(alloc,&datos_[j]);
+        }
+        if (datos_) {
+            alloc.deallocate(datos_, capacidad_);
         }
 
-        delete[] datos_;
         datos_ = nuevo;
+        capacidad_ = nuevaCapacidad;
+    }
+#else
+    void cambiarCapacidad(size_t nuevaCapacidad = 0) {
+        if (nuevaCapacidad <= capacidad_) {
+            return;
+        }
+        if (nuevaCapacidad == 0) {
+            nuevaCapacidad = capacidad_ == 0 ? 1 : capacidad_ * 2;
+        }
+
+        tipodato* nuevo = alloc.allocate(nuevaCapacidad);
+        size_t i = 0;
+        try {
+            for (; i < tamano_; ++i) {
+                alloc_construct(alloc, &nuevo[i], datos_[i]);
+            }
+        } catch (...) {
+            for (size_t j = 0; j < i; ++j) {
+                alloc_destroy(alloc, &nuevo[j]);
+            }
+            alloc.deallocate(nuevo, nuevaCapacidad);
+            throw;
+        }
+
+        for (size_t j = 0; j < tamano_; ++j) {
+            alloc_destroy(alloc, &datos_[j]);
+        }
+        if (datos_) {
+            alloc.deallocate(datos_, capacidad_);
+        }
+
+        datos_ = nuevo;
+        capacidad_ = nuevaCapacidad;
     }
 
+#endif
     /**
     * @brief Elimina la primera ocurrencia de un valor.
     *
@@ -2094,7 +2348,7 @@ public:
     *
     * @param dato Valor a eliminar.
     */
-    void eliminarDato(tipodato dato) {
+    void eliminarDato(const tipodato& dato) {
         for (size_t i = 0; i < tamano_; i++) {
             if (datos_[i] == dato) {
                 eliminar(i);
@@ -2122,7 +2376,10 @@ public:
      * Solo ajusta el tamaño a cero.
      */
     void vaciar() {
-        clear();
+        for (size_t i = 0; i < tamano_; ++i) {
+            alloc_destroy(alloc,&datos_[i]);
+        }
+        tamano_ = 0;
     }
 
     /**
@@ -2135,6 +2392,7 @@ public:
             throw std::out_of_range("No hay elementos en el vector");
         }
         --tamano_;
+        alloc_destroy(alloc,&datos_[tamano_]);
     }
 
     //
@@ -2157,10 +2415,14 @@ public:
         if (tamano_ == capacidad_) {
             cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
         }
+
         for (size_t i = tamano_; i > indice; i--) {
-            datos_[i] = datos_[i - 1];
+            alloc_construct(alloc, &datos_[i], datos_[i - 1]);
+            alloc_destroy(alloc, &datos_[i - 1]);
         }
-        datos_[indice] = dato;
+
+        alloc_construct(alloc, &datos_[indice], dato);
+
         ++tamano_;
     }
 
@@ -2180,8 +2442,11 @@ public:
 
         size_t index = it.ptr - datos_;
 
-        if (index < tamano_ - 1) {
-            std::memmove(&datos_[index], &datos_[index + 1], sizeof(tipodato) * (tamano_ - index - 1));
+        alloc_destroy(alloc, &datos_[index]);
+
+        for (size_t i = index; i < tamano_ - 1; ++i) {
+            alloc_construct(alloc, &datos_[i], datos_[i + 1]);
+            alloc_destroy(alloc, &datos_[i + 1]);
         }
 
         --tamano_;
@@ -2201,12 +2466,15 @@ public:
 
         if (std::is_trivially_copyable<tipodato>::value) {
             std::memmove(&datos_[indice + 1], &datos_[indice], sizeof(tipodato) * (tamano_ - indice));
+            alloc_construct(&datos_[indice], dato);
         } else {
-            for (size_t i = tamano_; i > indice; --i)
-                datos_[i] = std::move(datos_[i - 1]);
+            for (size_t i = tamano_; i > indice; --i) {
+                alloc_construct(&datos_[i], std::move(datos_[i - 1]));
+                alloc_destroy(alloc, &datos_[i - 1]);
+            }
+            alloc_construct(&datos_[indice], dato);
         }
 
-        datos_[indice] = dato;
         ++tamano_;
     }
 
@@ -2215,11 +2483,15 @@ public:
             throw std::out_of_range("Iterador fuera de rango");
 
         size_t idx = it.ptr - datos_;
+        alloc_destroy(alloc, &datos_[idx]);
+
         if (std::is_trivially_copyable<tipodato>::value) {
             std::memmove(&datos_[idx], &datos_[idx + 1], sizeof(tipodato) * (tamano_ - idx - 1));
         } else {
-            for (size_t i = idx; i < tamano_ - 1; ++i)
-                datos_[i] = std::move(datos_[i + 1]);
+            for (size_t i = idx; i < tamano_ - 1; ++i) {
+                alloc_construct(&datos_[i], std::move(datos_[i + 1]));
+                alloc_destroy(alloc, &datos_[i + 1]);
+            }
         }
         --tamano_;
         return Iterator(datos_ + idx);
@@ -2232,10 +2504,11 @@ public:
         if (std::is_trivially_copyable<tipodato>::value) {
             std::memmove(&datos_[start], &datos_[end], sizeof(tipodato) * (tamano_ - end));
         } else {
-            for (size_t i = 0; i < tamano_ - end; ++i)
-                datos_[start + i] = std::move(datos_[end + i]);
+            for (size_t i = 0; i < tamano_ - end; ++i) {
+                alloc_construct(&datos_[start + i], std::move(datos_[end + i]));
+                alloc_destroy(alloc, &datos_[end + i]);
+            }
         }
-
         tamano_ -= count;
         return Iterator(datos_ + start);
     }
@@ -2246,7 +2519,6 @@ public:
     //
 
 #if __cplusplus>=201703L
-    template<typename U = tipodato>
     /**
      * @brief Elimina el elemento apuntado por un iterador (C++17+).
      *
@@ -2256,24 +2528,27 @@ public:
      * @return Iterador al siguiente elemento.
      * @throws std::out_of_range si el iterador está fuera de rango.
      */
+    template<typename U = tipodato>
     Iterator erase(Iterator it) {
         if (it.ptr < datos_ || it.ptr >= datos_ + tamano_)
             throw std::out_of_range("Iterador fuera de rango");
 
         size_t idx = it.ptr - datos_;
-        if (idx < tamano_ - 1) {
-            if constexpr (std::is_trivially_copyable_v<tipodato>) {
-                std::memmove(&datos_[idx], &datos_[idx + 1], sizeof(tipodato) * (tamano_ - idx - 1));
-            } else {
-                for (size_t i = idx; i < tamano_ - 1; ++i)
-                    datos_[i] = std::move(datos_[i + 1]);
+
+        alloc_destroy(alloc, &datos_[idx]);
+
+        if constexpr (std::is_trivially_copyable_v<tipodato>) {
+            std::memmove(&datos_[idx], &datos_[idx + 1], sizeof(tipodato) * (tamano_ - idx - 1));
+        } else {
+            for (size_t i = idx; i < tamano_ - 1; ++i) {
+                alloc_construct(alloc, &datos_[i], std::move(datos_[i + 1]));
+                alloc_destroy(alloc, &datos_[i + 1]);
             }
         }
         --tamano_;
         return Iterator(datos_ + idx);
     }
 
-    template<typename U = tipodato>
     /**
      * @brief Elimina un rango de elementos (C++17+).
      *
@@ -2283,44 +2558,72 @@ public:
      * @param last Iterador al siguiente al último.
      * @return Iterador al siguiente elemento tras el borrado.
      */
+    template<typename U = tipodato>
     Iterator erase(Iterator first, Iterator last) {
         if (first == last) return first;
         size_t start = first - begin(), end = last - begin(), count = end - start;
+
         if constexpr (std::is_trivially_copyable_v<tipodato>) {
             std::memmove(&datos_[start], &datos_[end], sizeof(tipodato) * (tamano_ - end));
         } else {
-            for (size_t i = 0; i < tamano_ - end; ++i)
-                datos_[start + i] = std::move(datos_[end + i]);
+            for (size_t i = 0; i < tamano_ - end; ++i) {
+                alloc_construct(alloc, &datos_[start + i], std::move(datos_[end + i]));
+                alloc_destroy(alloc, &datos_[end + i]);
+            }
         }
         tamano_ -= count;
         return Iterator(datos_ + start);
     }
 
-/**
-* @brief Inserta un valor en el índice especificado (C++17+).
-*
-* Usa if constexpr para optimizar el movimiento o copia según el tipo.
-*
-* @param indice Índice donde se insertará el valor.
-* @param dato Valor a insertar.
-* @throws std::out_of_range si el índice está fuera de rango.
-*/
+    /**
+    * @brief Inserta un valor en el índice especificado (C++17+).
+    *
+    * Usa if constexpr para optimizar el movimiento o copia según el tipo.
+    *
+    * @param indice Índice donde se insertará el valor.
+    * @param dato Valor a insertar.
+    * @throws std::out_of_range si el índice está fuera de rango.
+    */
     void insertar(size_t indice, const tipodato& dato) {
         if (indice > tamano_) throw std::out_of_range("Indice fuera de rango");
         if (tamano_ == capacidad_) cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
 
         if constexpr (std::is_trivially_copyable_v<tipodato>) {
             std::memmove(&datos_[indice + 1], &datos_[indice], sizeof(tipodato) * (tamano_ - indice));
+            alloc_construct(alloc, &datos_[indice], dato);
         } else {
-            for (size_t i = tamano_; i > indice; --i)
-                datos_[i] = std::move(datos_[i - 1]);
+            for (size_t i = tamano_; i > indice; --i) {
+                alloc_construct(alloc, &datos_[i], std::move(datos_[i - 1]));
+                alloc_destroy(alloc, &datos_[i - 1]);
+            }
+            alloc_construct(alloc, &datos_[indice], dato);
         }
-
-        datos_[indice] = dato;
         ++tamano_;
     }
 #endif
+#if __cplusplus>=201103L
+    /**
+    * @brief Elimina el elemento ubicado en el índice dado.
+    *
+    * @param indice Índice del elemento a eliminar.
+    * @throws std::out_of_range si el índice está fuera de rango.
+    */
 
+    void eliminar(size_t indice) {
+        if (indice >= tamano_) {
+            throw std::out_of_range("Indice fuera de rango");
+        }
+
+        alloc_destroy(alloc, &datos_[indice]);
+
+        for (size_t i = indice; i < tamano_ - 1; ++i) {
+            alloc_construct(alloc, &datos_[i], std::move(datos_[i + 1]));
+            alloc_destroy(alloc, &datos_[i + 1]);
+        }
+
+        --tamano_;
+    }
+#else
     /**
     * @brief Elimina el elemento ubicado en el índice dado.
     *
@@ -2331,11 +2634,16 @@ public:
         if (indice >= tamano_) {
             throw std::out_of_range("Indice fuera de rango");
         }
-        for (size_t i = indice; i < tamano_ - 1; i++) {
-            datos_[i] = datos_[i + 1];
+
+        alloc_destroy(alloc, &datos_[indice]);
+
+        for (size_t i = indice; i < tamano_ - 1; ++i) {
+            alloc_construct(alloc, &datos_[i], datos_[i + 1]);
+            alloc_destroy(alloc, &datos_[i + 1]);
         }
         --tamano_;
     }
+#endif
 
     /**
     * @brief Verifica si el vector contiene un valor.
@@ -2520,8 +2828,8 @@ public:
     * @throws std::out_of_range Si los índices no son válidos.
     */
     Vector subvector(size_t desde, size_t hasta) const {
-        if (desde > hasta || hasta > tamano_) {
-            throw std::out_of_range("Indice fuera de rango");
+        if (desde >= hasta || hasta > tamano_ || desde > tamano_) {
+            return Vector{};
         }
         Vector nuevo;
         for (size_t i = desde; i < hasta; ++i) {
@@ -2596,6 +2904,34 @@ public:
         datos_[j] = aux;
     }
 
+#if __cplusplus>=201103L
+    /**
+    * @brief Inserta otro vector a partir de un índice específico.
+    * @param indice Índice donde se insertarán los datos.
+    * @param v Vector a insertar.
+    * @throws std::out_of_range Si el índice es inválido.
+    */
+    void insertarVector(size_t indice, const Vector &v) {
+        if (indice > tamano_) throw std::out_of_range("Indice fuera de rango");
+        Vector copia = v;
+
+        while (tamano_ + copia.tamano_ > capacidad_) {
+            cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
+        }
+
+        for (size_t i = tamano_; i > indice; --i) {
+            alloc_destroy(alloc, &datos_[i + copia.tamano_ - 1]);
+            alloc_construct(alloc, &datos_[i + copia.tamano_ - 1], std::move(datos_[i - 1]));
+            alloc_destroy(alloc, &datos_[i - 1]);
+        }
+
+        for (size_t i = 0; i < copia.tamano_; ++i) {
+            alloc_construct(alloc, &datos_[indice + i], copia.datos_[i]);
+        }
+
+        tamano_ += copia.tamano_;
+    }
+#else
     /**
     * @brief Inserta otro vector a partir de un índice específico.
     * @param indice Índice donde se insertarán los datos.
@@ -2609,14 +2945,17 @@ public:
             cambiarCapacidad(capacidad_ == 0 ? 1 : capacidad_ * 2);
         }
         for (size_t i = tamano_; i > indice; --i) {
-            datos_[i + copia.tamano_ - 1] = datos_[i - 1];
+            alloc_destroy(alloc, &datos_[i + copia.tamano_ - 1]);
+            // Use copy instead of move for C++98
+            alloc_construct(alloc, &datos_[i + copia.tamano_ - 1], datos_[i - 1]);
+            alloc_destroy(alloc, &datos_[i - 1]);
         }
         for (size_t i = 0; i < copia.tamano_; ++i) {
-            datos_[indice + i] = copia.datos_[i];
+            alloc_construct(alloc, &datos_[indice + i], copia.datos_[i]);
         }
         tamano_ += copia.tamano_;
     }
-
+#endif
     /** @name Métodos compatibles con std::vector
     *Métodos alternativos con nombres en inglés para facilitar la interoperabilidad.
     */
@@ -2802,6 +3141,22 @@ public:
     void bubbleSort() {
         ordenarBurbuja();
     }
+
+#if __cplusplus >= 202002L
+    void grow_to_fit(const size_t newSize) {
+        aumentarCapacidad(newSize);
+    }
+
+    template <std::ranges::input_range R>
+    void append_range(R&& range) {
+        agregarRango(std::forward<R>(range));
+    }
+
+    template <std::ranges::input_range R>
+    Iterator insert_range(size_t pos, R&& range) {
+        return insertarRango(pos, std::forward<R>(range));
+    }
+#endif
 
     ///@}
 
