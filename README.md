@@ -15,6 +15,7 @@ The library supports all C++ versions (note that some features may not be availa
 - Iterators
 - Move semantics
 - Support for higher dimension arrays
+- Memory management via allocator
 
 ## What are the methods included in the library?
 
@@ -51,11 +52,13 @@ The library supports all C++ versions (note that some features may not be availa
 ### Modifiers
 | STL Method  | cppvector (English) | cppvector (Spanish) |
 |-------------|---------------------|---------------------|
+| append_range() | append_range()   | agregarRango()      |
 | clear()     | clear()             | limpiar()           |
 | emplace()   | emplace()           | emplace()           |
 | emplace_back() | emplace_back()   | emplace_back()      |
 | erase()     | erase()             | erase()             |
 | insert()    | insert()            | insertar()          |
+| insert_range() | insert_range()   | insertarRango()     |
 | pop_back()  | pop_back()          | eliminarFinal()     |
 | push_back() | push_back()         | agregarFinal()      |
 | resize()    | resize()            | redimensionar()     |
@@ -85,9 +88,9 @@ The library supports all C++ versions (note that some features may not be availa
 - subvector() creates a subvector in a specified range of elements.
 
 ### TODO
-- Add allocator support
-- Add append_range() support (C++23+)
-- Add insert_range() support (C++23+)
+- ~~Add allocator support~~
+- ~~Add append_range() support (C++23+)~~
+- ~~Add insert_range() support (C++23+)~~
 - ~~Translate more methods to Spanish~~
 
 ### Usage example
