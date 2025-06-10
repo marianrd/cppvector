@@ -70,7 +70,7 @@ The library supports C++20+.
 | sort()              | ordenar()           |
 | bubble_sort()       | ordenarBurbuja()    |
 | display()           | mostrar()           |
-| removeDuplicates()  | eliminarDuplicados() |
+| remove_duplicates() | eliminarDuplicados() |
 | reverse()           | invertir()          |
 | swap_indices()      | intercambiarIndices() |
 | replace_all()       | reemplazar()        |
