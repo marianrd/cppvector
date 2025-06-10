@@ -4,7 +4,7 @@
 # cppvector
 
 A custom dynamic vector implementation in C++, with full support for STL algorithms, iterators and bilingual method names in **English** and **Spanish**.
-The library supports all C++ versions (note that some features may not be available in older versions).
+The library supports C++20+.
 
 ## Features
 
@@ -68,30 +68,24 @@ The library supports all C++ versions (note that some features may not be availa
 | cppvector (English) | cppvector (Spanish) |
 |---------------------|---------------------|
 | sort()              | ordenar()           |
-| bubbleSort()        | ordenarBurbuja()    |
+| bubble_sort()       | ordenarBurbuja()    |
 | display()           | mostrar()           |
 | removeDuplicates()  | eliminarDuplicados() |
-| reverse ()          | invertir()          |
-| swapIndices()       | intercambiarIndices() |
-| replaceAll()        | reemplazar()        |
+| reverse()           | invertir()          |
+| swap_indices()      | intercambiarIndices() |
+| replace_all()       | reemplazar()        |
 | slice()             | subvector()         |
 
 #### Custom methods explanation
 
-- ordenar() uses std::sort to sort the vector in ascending order.
-- ordenarBurbuja() uses bubble sort to sort the vector in ascending order (just for fun — avoid for large datasets!).
-- mostrar() prints all elements stored in the vector to console.
-- eliminarDuplicados() deletes all duplicate values in the vector.
-- invertir() inverts the order of elements in the vector.
-- intercambiarIndices() swaps indices of two provided elements.
-- reemplazar() replaces all occurrences of an element in the vector.
-- subvector() creates a subvector in a specified range of elements.
-
-### TODO
-- ~~Add allocator support~~
-- ~~Add append_range() support (C++23+)~~
-- ~~Add insert_range() support (C++23+)~~
-- ~~Translate more methods to Spanish~~
+- sort() uses std::sort to sort the vector in ascending order.
+- bubble_sort() uses bubble sort to sort the vector in ascending order (just for fun — avoid for large datasets!).
+- display() prints all elements stored in the vector to console.
+- remove_duplicates() deletes all duplicate values in the vector.
+- reverse() inverts the order of elements in the vector.
+- swap_indices() swaps indices of two provided elements.
+- replace_all() replaces all occurrences of an element in the vector.
+- slice() creates a subvector in a specified range of elements.
 
 ### Usage example
 ```c++
