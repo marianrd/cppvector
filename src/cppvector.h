@@ -27,6 +27,9 @@
 #include <limits>
 #include <stdexcept>
 #include <ranges>
+#include <memory>
+#include <vector>
+
 /**
 * @brief Compara la igualdad entre dos valores.
 *
@@ -431,7 +434,7 @@ public:
      * @brief Metodo que apunta al inicio del vector para ser usado en un iterador
      * @return
      */
-    Iterator begin() const {
+    constexpr Iterator begin() const {
         return Iterator(datos_);
     }
 
@@ -439,7 +442,7 @@ public:
      * @brief Metodo que apunta al final del vector para ser usado en un iterador
      * @return
      */
-    Iterator end() const {
+    constexpr Iterator end() const {
         return Iterator(datos_+tamano_);
     }
 
@@ -512,8 +515,8 @@ public:
         * @brief Operador flecha para acceso a miembros.
         * @return Puntero al elemento actual.
         */
-        constexpr tipodato &operator->() const noexcept {
-            return &(*ptr);
+        constexpr tipodato* operator->() const noexcept {
+            return ptr;
         }
 
         /**
@@ -607,14 +610,14 @@ public:
      * @brief Retorna un iterador inverso apuntando al último elemento.
      * @return ReverseIterator al final de la colección (último elemento).
      */
-    ReverseIterator rbegin() const {
+    constexpr ReverseIterator rbegin() const {
         return ReverseIterator(datos_+tamano_-1);
     }
     /**
      * @brief Retorna un iterador inverso apuntando antes del primer elemento.
      * @return ReverseIterator al "fin" lógico del recorrido inverso.
      */
-    ReverseIterator rend() const {
+    constexpr ReverseIterator rend() const {
         return ReverseIterator(datos_-1);
     }
 
@@ -755,11 +758,11 @@ public:
         }
         //  Operador menor o igual que
         constexpr bool operator<=(const ConstIterator &o) const noexcept {
-            return ptr >= o.ptr;
+            return ptr <= o.ptr;
         }
         //  Operador mayor o igual que
         constexpr bool operator>=(const ConstIterator &o) const noexcept {
-            return ptr <= o.ptr;
+            return ptr >= o.ptr;
         }
     };
 
@@ -793,7 +796,7 @@ public:
      * Cumple con los requisitos de un iterador aleatorio.
      */
     struct ConstReverseIterator {
-        tipodato *ptr;
+        const tipodato *ptr;
 
         using iterator_category = std::random_access_iterator_tag;
         using value_type = tipodato;
@@ -855,8 +858,8 @@ public:
         * @brief Operador flecha.
         * @return Puntero constante al elemento actual.
         */
-        constexpr const tipodato &operator->() const noexcept {
-            return &(*ptr);
+        constexpr const tipodato* operator->() const noexcept {
+            return ptr;
         }
 
         //  Operador de incremento
@@ -1141,16 +1144,7 @@ public:
      * Reinicia tamaño y capacidad a cero.
      */
     void clear() {
-        for (size_t i = 0; i < tamano_; ++i) {
-            alloc_destroy(alloc,&datos_[i]);
-        }
-        if (datos_) {
-            alloc.deallocate(datos_, capacidad_);
-            datos_ = nullptr;
-        }
-        tamano_ = 0;
-        capacidad_ = 0;
-        ordenado_ = true;
+        vaciar();
     }
 
     /**
@@ -1330,7 +1324,6 @@ public:
      * @return Referencia al valor.
      */
     tipodato &operator[](size_t indice) {
-        ordenado_ = false;
         return datos_[indice];
     }
 
@@ -1492,10 +1485,6 @@ private:
             return;
         }
 
-        if (!ordenado_) {
-            return;
-        }
-
         for (size_t i = 1; i < tamano_; ++i) {
             if (datos_[i] < datos_[i-1]) {
                 ordenado_ = false;
@@ -1608,7 +1597,11 @@ public:
         if constexpr (std::is_trivially_copyable_v<tipodato>) {
             std::memmove(&datos_[start], &datos_[end], sizeof(tipodato) * (tamano_ - end));
         } else {
-            for (size_t i = 0; i < tamano_ - end; ++i) {
+            for (size_t i = start; i < end; ++i) {
+                alloc_destroy(alloc, &datos_[i]);
+            }
+            size_t remaining = tamano_ - end;
+            for (size_t i = 0; i < remaining; ++i) {
                 alloc_construct(alloc, &datos_[start + i], std::move(datos_[end + i]));
                 alloc_destroy(alloc, &datos_[end + i]);
             }
@@ -1703,10 +1696,8 @@ public:
     * @return Copia del valor en la posición indicada.
     * @throws std::out_of_range si el índice es inválido.
     */
-    tipodato obtener(const int indice) const {
-        if (indice<0||indice>=tamano_) {
-            throw std::out_of_range("Indice fuera de rango");
-        }
+    tipodato obtener(size_t indice) const {
+        if (indice >= tamano_) throw std::out_of_range("Indice fuera de rango");
         return datos_[indice];
     }
 
@@ -1730,6 +1721,12 @@ public:
     */
     void reducirCapacidad() {
         if (capacidad_ > tamano_) {
+            if (tamano_ == 0) { 
+                alloc.deallocate(datos_, capacidad_);
+                datos_ = nullptr;
+                capacidad_ = 0;
+                return;
+            }
             tipodato* nuevo = alloc.allocate(tamano_);
             size_t i = 0;
             try {
@@ -1939,8 +1936,10 @@ public:
         }
 
         for (size_t i = tamano_; i > indice; --i) {
-            alloc_destroy(alloc, &datos_[i + copia.tamano_ - 1]);
-            alloc_construct(alloc, &datos_[i + copia.tamano_ - 1], std::move(datos_[i - 1]));
+            size_t dest = i + copia.tamano_ - 1;
+            if (dest < tamano_ + copia.tamano_) {
+                alloc_construct(alloc, &datos_[dest], std::move(datos_[i - 1]));
+            }
             alloc_destroy(alloc, &datos_[i - 1]);
         }
 
@@ -2142,8 +2141,8 @@ public:
     * @param indexB Index of the second element.
     * @return 1 if swapped successfully, 0 or error code otherwise.
     */
-    int swap_indices(size_t indexA, size_t indexB) {
-        return intercambiarIndices(indexA, indexB);
+    void swap_indices(size_t indexA, size_t indexB) {
+        intercambiarIndices(indexA, indexB);
     }
     /**
     * @brief Replaces all occurrences of a value with another.
@@ -2151,8 +2150,8 @@ public:
     * @param newValue Replacement value.
     * @return Number of elements replaced.
     */
-    tipodato replace_all(tipodato oldValue, tipodato newValue) {
-        return reemplazar(oldValue, newValue);
+    void replace_all(const tipodato& oldValue, const tipodato& newValue) {
+    reemplazar(oldValue, newValue);
     }
     /**
     * @brief Creates a subvector between two indices (inclusive from, exclusive to).
