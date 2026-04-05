@@ -53,7 +53,7 @@ The library supports C++20+.
 | STL Method  | cppvector (English) | cppvector (Spanish) |
 |-------------|---------------------|---------------------|
 | append_range() | append_range()   | agregarRango()      |
-| clear()     | clear()             | limpiar()           |
+| clear()     | clear()             | vaciar()            |
 | emplace()   | emplace()           | emplace()           |
 | emplace_back() | emplace_back()   | emplace_back()      |
 | erase()     | erase()             | erase()             |
